@@ -1,9 +1,137 @@
+// src/Catalog.jsx
 import { useEffect, useState } from 'react'
 import { supabase } from './lib/supabase'
+import { estimateM } from './lib/costModel'
 
-const fmt = n => (n == null || n === '' ? '—' : Number(n).toLocaleString('he-IL'))
+const fmt = n => (n == null || n === '' ? 'אין נתון' : Number(n).toLocaleString('he-IL'))
 
-export default function Catalog() {
+const CONF = {
+  precise: { txt: 'מדויק', color: '#2e7d32' },
+  calculated: { txt: 'מחושב', color: '#1565c0' },
+  default: { txt: 'לפי ברירת מחדל', color: '#8a6d00' },
+  estimate: { txt: 'הערכה', color: '#b26a00' },
+}
+
+function Tag({ conf }) {
+  const c = CONF[conf] || CONF.estimate
+  return (
+    <span style={{ fontSize: 11, color: c.color, border: `1px solid ${c.color}`, borderRadius: 8, padding: '1px 7px', marginInlineStart: 8, whiteSpace: 'nowrap' }}>
+      {c.txt}
+    </span>
+  )
+}
+
+function Detail({ v, profile, onBack, onProfileSaved }) {
+  const [includeEst, setIncludeEst] = useState(true)
+  const [edits, setEdits] = useState({})
+  const [birth, setBirth] = useState('')
+  const [lic, setLic] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const hasDriver = profile?.birth_year != null
+  const m = estimateM(
+    v,
+    { birthYear: profile?.birth_year, licenseYear: profile?.license_year },
+    { includeEstimates: true }
+  )
+
+  const rows = m.components.map(c => {
+    const isEst = c.confidence === 'estimate'
+    const e = edits[c.key]
+    let val
+    if (e !== undefined && e !== '') val = Number(e)
+    else if (isEst && !includeEst) val = null
+    else val = c.monthly
+    return { ...c, shown: Number.isFinite(val) ? val : null, edited: e !== undefined && e !== '' }
+  })
+  const total = rows.reduce((s, c) => s + (c.shown ?? 0), 0)
+  const missing = rows.some(c => c.shown == null)
+
+  async function saveDriver() {
+    setSaving(true)
+    const { data } = await supabase.auth.getUser()
+    const uid = data?.user?.id
+    if (uid) {
+      await supabase.from('profiles').update({
+        birth_year: birth === '' ? null : Number(birth),
+        license_year: lic === '' ? null : Number(lic),
+      }).eq('id', uid)
+      await onProfileSaved()
+    }
+    setSaving(false)
+  }
+
+  const a = v.attrs || {}
+  const wrap = { maxWidth: 480, margin: '20px auto', fontFamily: 'sans-serif', direction: 'rtl', padding: 16 }
+  const rowSt = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid #eee', gap: 10 }
+
+  return (
+    <div style={wrap}>
+      <button onClick={onBack} style={{ marginBottom: 14, padding: '6px 10px' }}>חזרה</button>
+      <h2 style={{ marginBottom: 4 }}>{v.name}</h2>
+      <div style={{ color: '#777', marginBottom: 10 }}>שנת {v.year} · {a.importer || ''}</div>
+      <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 16 }}>{fmt(v.market_price)} ₪</div>
+
+      <h3 style={{ marginBottom: 6 }}>עלות חודשית</h3>
+
+      {!hasDriver && (
+        <div style={{ background: '#f6f6f6', borderRadius: 10, padding: 12, marginBottom: 12, fontSize: 13 }}>
+          <div style={{ marginBottom: 8 }}>להערכת ביטוח מכוונת אליך, השלם שנת לידה ושנת הוצאת רישיון</div>
+          <input style={{ width: '48%', padding: 8, marginInlineEnd: '4%', boxSizing: 'border-box' }} placeholder="שנת לידה" inputMode="numeric" value={birth} onChange={e => setBirth(e.target.value)} />
+          <input style={{ width: '48%', padding: 8, boxSizing: 'border-box' }} placeholder="שנת רישיון" inputMode="numeric" value={lic} onChange={e => setLic(e.target.value)} />
+          <button onClick={saveDriver} disabled={saving} style={{ display: 'block', marginTop: 8, padding: '7px 12px' }}>
+            {saving ? 'שומר' : 'שמור בפרופיל'}
+          </button>
+        </div>
+      )}
+
+      <label style={{ display: 'block', fontSize: 13, marginBottom: 10, lineHeight: 1.5 }}>
+        <input type="checkbox" checked={includeEst} onChange={e => setIncludeEst(e.target.checked)} />
+        {' '}לכלול הערכת ביטוח ותחזוקה בסכום. אלה סכומים משוערים לפי מאפייני הרכב והנהג, לא הצעת מחיר. כל רכיב ניתן לעריכה.
+      </label>
+
+      {rows.map(c => (
+        <div key={c.key} style={{ ...rowSt, opacity: c.shown == null ? 0.55 : 1 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 600, fontSize: 14 }}>
+              {c.label}
+              <Tag conf={c.confidence} />
+              {c.edited && <span style={{ fontSize: 11, color: '#666', marginInlineStart: 6 }}>נערך ידנית</span>}
+            </div>
+            <div style={{ fontSize: 11.5, color: '#999', marginTop: 2 }}>
+              {c.shown == null
+                ? 'לא נכלל בחישוב. הזן סכום ידנית אם תרצה'
+                : c.note + (c.rangeMonthly ? ' · טווח ' + fmt(c.rangeMonthly[0]) + ' עד ' + fmt(c.rangeMonthly[1]) + ' ₪' : '')}
+            </div>
+          </div>
+          <input
+            inputMode="numeric"
+            value={edits[c.key] ?? (c.shown != null ? String(c.shown) : '')}
+            placeholder="הזן"
+            onChange={e => setEdits(x => ({ ...x, [c.key]: e.target.value }))}
+            style={{ width: 84, padding: 6, textAlign: 'center' }}
+          />
+        </div>
+      ))}
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '14px 0', fontWeight: 800, fontSize: 16 }}>
+        <div>סך הכול לחודש</div>
+        <div>{fmt(total)} ₪</div>
+      </div>
+      {missing && (
+        <div style={{ fontSize: 12, color: '#b26a00' }}>
+          חלק מהעלויות לא נכללו, העלות בפועל תהיה גבוהה יותר.
+        </div>
+      )}
+
+      <div style={{ marginTop: 14, fontSize: 12.5 }}>
+        <a href="https://car.cma.gov.il" target="_blank" rel="noreferrer">לבדיקת מחיר ביטוח אמיתי, מחשבון רשות שוק ההון</a>
+      </div>
+    </div>
+  )
+}
+
+export default function Catalog({ profile, onProfileSaved }) {
   const [query, setQuery] = useState('')
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(false)
@@ -29,31 +157,16 @@ export default function Catalog() {
   useEffect(() => { search('') }, [])
 
   const wrap = { maxWidth: 480, margin: '20px auto', fontFamily: 'sans-serif', direction: 'rtl', padding: 16 }
-  const input = { width: '100%', padding: 10, marginBottom: 12, boxSizing: 'border-box', fontSize: 15 }
   const row = { padding: 12, borderBottom: '1px solid #eee', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', gap: 10 }
 
   if (selected) {
-    const a = selected.attrs || {}
-    return (
-      <div style={wrap}>
-        <button onClick={() => setSelected(null)} style={{ marginBottom: 14, padding: '6px 10px' }}>חזרה</button>
-        <h2 style={{ marginBottom: 4 }}>{selected.name}</h2>
-        <div style={{ color: '#777', marginBottom: 16 }}>שנת {selected.year} · {a.importer || ''}</div>
-        <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 16 }}>{fmt(selected.market_price)} ₪</div>
-        <div style={{ fontSize: 13, color: '#555', lineHeight: 1.9 }}>
-          <div>מחיר שוק P: {fmt(selected.market_price)} ₪</div>
-          <div>תוספות חד פעמיות K: לא זמין עדיין</div>
-          <div>עלות חודשית M: לא זמין עדיין</div>
-          {a.model_tech && <div style={{ marginTop: 10, color: '#999' }}>קוד יצרן: {a.model_tech}</div>}
-        </div>
-      </div>
-    )
+    return <Detail v={selected} profile={profile} onBack={() => setSelected(null)} onProfileSaved={onProfileSaved} />
   }
 
   return (
     <div style={wrap}>
       <input
-        style={input}
+        style={{ width: '100%', padding: 10, marginBottom: 12, boxSizing: 'border-box', fontSize: 15 }}
         placeholder="חפש לפי יצרן או דגם, למשל טויוטה"
         value={query}
         onChange={e => setQuery(e.target.value)}

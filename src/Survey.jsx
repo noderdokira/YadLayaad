@@ -1,3 +1,4 @@
+// src/Survey.jsx
 import { useState } from 'react'
 import { supabase } from './lib/supabase'
 
@@ -25,6 +26,8 @@ export default function Survey({ userId, onDone }) {
   const [savings, setSavings] = useState('')
   const [monthly, setMonthly] = useState('')
   const [license, setLicense] = useState('')
+  const [birthYear, setBirthYear] = useState('')
+  const [licenseYear, setLicenseYear] = useState('')
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
 
@@ -53,6 +56,8 @@ export default function Survey({ userId, onDone }) {
       current_savings: savings === '' ? 0 : Number(savings),
       monthly_capacity: monthly === '' ? null : Number(monthly),
       license: license || null,
+      birth_year: birthYear === '' ? null : Number(birthYear),
+      license_year: licenseYear === '' ? null : Number(licenseYear),
       sigma: Number(sigma.toFixed(3)),
       motivation_style: style,
     })
@@ -80,11 +85,13 @@ export default function Survey({ userId, onDone }) {
   return (
     <div style={wrap}>
       <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>הנתונים הכספיים שלך</div>
-      <div style={{ fontSize: 13, color: '#777', marginBottom: 16 }}>כדי לחשב כמה כל יעד באמת דורש ממך</div>
+      <div style={{ fontSize: 13, color: '#777', marginBottom: 16 }}>כדי לחשב כמה כל יעד באמת דורש ממך, ולהעריך ביטוח שמכוון אליך</div>
       <input style={input} placeholder="הכנסה חודשית נטו בשקלים" inputMode="numeric" value={income} onChange={e => setIncome(e.target.value)} />
       <input style={input} placeholder="כמה כבר חסכת בשקלים" inputMode="numeric" value={savings} onChange={e => setSavings(e.target.value)} />
       <input style={input} placeholder="כמה תוכל להפריש בחודש בשקלים" inputMode="numeric" value={monthly} onChange={e => setMonthly(e.target.value)} />
-      <input style={input} placeholder="רישיון נהיגה, לא חובה" value={license} onChange={e => setLicense(e.target.value)} />
+      <input style={input} placeholder="סוג רישיון נהיגה, לא חובה" value={license} onChange={e => setLicense(e.target.value)} />
+      <input style={input} placeholder="שנת לידה, למשל 2004" inputMode="numeric" value={birthYear} onChange={e => setBirthYear(e.target.value)} />
+      <input style={input} placeholder="שנת הוצאת רישיון, למשל 2022" inputMode="numeric" value={licenseYear} onChange={e => setLicenseYear(e.target.value)} />
       <button onClick={finish} disabled={saving} style={{ width: '100%', padding: 12, borderRadius: 10, border: 'none', background: '#111', color: '#fff', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>
         {saving ? 'שומר' : 'סיום ושמירת פרופיל'}
       </button>

@@ -1,3 +1,4 @@
+// src/App.jsx
 import { useEffect, useState } from 'react'
 import { supabase } from './lib/supabase'
 import Auth from './Auth'
@@ -19,7 +20,11 @@ export default function App() {
 
   async function loadProfile(uid) {
     setLoading(true)
-    const { data } = await supabase.from('profiles').select('sigma, motivation_style').eq('id', uid).maybeSingle()
+    const { data } = await supabase
+      .from('profiles')
+      .select('sigma, motivation_style, birth_year, license_year')
+      .eq('id', uid)
+      .maybeSingle()
     setProfile(data || null)
     setLoading(false)
   }
@@ -46,7 +51,7 @@ export default function App() {
         </div>
         <button onClick={() => supabase.auth.signOut()} style={{ padding: '6px 10px' }}>התנתקות</button>
       </div>
-      <Catalog />
+      <Catalog profile={profile} onProfileSaved={() => loadProfile(session.user.id)} />
     </div>
   )
 }
