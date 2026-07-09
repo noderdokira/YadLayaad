@@ -2,6 +2,8 @@
 import { useEffect, useState } from 'react'
 import { supabase } from './lib/supabase'
 import { estimateM } from './lib/costModel'
+import MatchTest from './MatchTest'
+import { GoalBanner, GoalSetup } from './Goal'
 
 const fmt = n => (n == null || n === '' ? 'אין נתון' : Number(n).toLocaleString('he-IL'))
 
@@ -21,7 +23,7 @@ function Tag({ conf }) {
   )
 }
 
-function Detail({ v, profile, onBack, onProfileSaved }) {
+function Detail({ v, profile, onBack, onProfileSaved, onStartGoal }) {
   const [includeEst, setIncludeEst] = useState(true)
   const [edits, setEdits] = useState({})
   const [birth, setBirth] = useState('')
@@ -46,6 +48,8 @@ function Detail({ v, profile, onBack, onProfileSaved }) {
   })
   const total = rows.reduce((s, c) => s + (c.shown ?? 0), 0)
   const missing = rows.some(c => c.shown == null)
+  const dirty = !includeEst || Object.values(edits).some(x => x !== undefined && x !== '')
+  const infoUrl = 'https://www.google.com/search?q=' + encodeURIComponent(v.name + ' ' + (v.year || ''))
 
   async function saveDriver() {
     setSaving(true)
@@ -70,7 +74,10 @@ function Detail({ v, profile, onBack, onProfileSaved }) {
       <button onClick={onBack} style={{ marginBottom: 14, padding: '6px 10px' }}>חזרה</button>
       <h2 style={{ marginBottom: 4 }}>{v.name}</h2>
       <div style={{ color: '#777', marginBottom: 10 }}>שנת {v.year} · {a.importer || ''}</div>
-      <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 16 }}>{fmt(v.market_price)} ₪</div>
+      <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 4 }}>{fmt(v.market_price)} ₪</div>
+      <div style={{ marginBottom: 16, fontSize: 12.5 }}>
+        <a href={infoUrl} target="_blank" rel="noreferrer">מידע על הדגם ברשת</a>
+      </div>
 
       <h3 style={{ marginBottom: 6 }}>עלות חודשית</h3>
 
@@ -89,6 +96,15 @@ function Detail({ v, profile, onBack, onProfileSaved }) {
         <input type="checkbox" checked={includeEst} onChange={e => setIncludeEst(e.target.checked)} />
         {' '}לכלול הערכת ביטוח ותחזוקה בסכום. אלה סכומים משוערים לפי מאפייני הרכב והנהג, לא הצעת מחיר. כל רכיב ניתן לעריכה.
       </label>
+
+      {dirty && (
+        <button
+          onClick={() => { setEdits({}); setIncludeEst(true) }}
+          style={{ marginBottom: 10, padding: '6px 10px', fontSize: 12.5 }}
+        >
+          איפוס לערכים המשוערים
+        </button>
+      )}
 
       {rows.map(c => (
         <div key={c.key} style={{ ...rowSt, opacity: c.shown == null ? 0.55 : 1 }}>
@@ -124,6 +140,13 @@ function Detail({ v, profile, onBack, onProfileSaved }) {
         </div>
       )}
 
+      <button
+        onClick={() => onStartGoal(total)}
+        style={{ display: 'block', width: '100%', marginTop: 16, padding: 12, borderRadius: 10, border: 'none', background: '#111', color: '#fff', fontWeight: 700, fontSize: 15, cursor: 'pointer' }}
+      >
+        בחר רכב זה והתחל לחסוך
+      </button>
+
       <div style={{ marginTop: 14, fontSize: 12.5 }}>
         <a href="https://car.cma.gov.il" target="_blank" rel="noreferrer">לבדיקת מחיר ביטוח אמיתי, מחשבון רשות שוק ההון</a>
       </div>
@@ -136,6 +159,8 @@ export default function Catalog({ profile, onProfileSaved }) {
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(false)
   const [selected, setSelected] = useState(null)
+  const [mode, setMode] = useState('list')
+  const [goalDraft, setGoalDraft] = useState(null)
 
   async function search(q) {
     setLoading(true)
@@ -156,15 +181,61 @@ export default function Catalog({ profile, onProfileSaved }) {
 
   useEffect(() => { search('') }, [])
 
+  async function openGoalCar(id) {
+    const { data } = await supabase
+      .from('products')
+      .select('id, name, year, market_price, addons_once, monthly_cost, attrs')
+      .eq('id', id)
+      .maybeSingle()
+    if (data) setSelected(data)
+  }
+
   const wrap = { maxWidth: 480, margin: '20px auto', fontFamily: 'sans-serif', direction: 'rtl', padding: 16 }
   const row = { padding: 12, borderBottom: '1px solid #eee', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', gap: 10 }
 
+  if (goalDraft) {
+    return (
+      <GoalSetup
+        v={goalDraft.v}
+        m={goalDraft.m}
+        profile={profile}
+        onBack={() => setGoalDraft(null)}
+        onDone={async () => { setGoalDraft(null); setSelected(null); await onProfileSaved() }}
+      />
+    )
+  }
+
   if (selected) {
-    return <Detail v={selected} profile={profile} onBack={() => setSelected(null)} onProfileSaved={onProfileSaved} />
+    return (
+      <Detail
+        v={selected}
+        profile={profile}
+        onBack={() => setSelected(null)}
+        onProfileSaved={onProfileSaved}
+        onStartGoal={total => setGoalDraft({ v: selected, m: total })}
+      />
+    )
+  }
+
+  if (mode === 'test') {
+    return (
+      <MatchTest
+        profile={profile}
+        onBack={() => setMode('list')}
+        onPick={v => { setMode('list'); setSelected(v) }}
+      />
+    )
   }
 
   return (
     <div style={wrap}>
+      <GoalBanner profile={profile} onOpenCar={openGoalCar} onProfileSaved={onProfileSaved} />
+      <button
+        onClick={() => setMode('test')}
+        style={{ width: '100%', padding: 12, marginBottom: 12, borderRadius: 10, border: '1px solid #111', background: '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}
+      >
+        {profile?.car_prefs ? 'תוצאות ההתאמה שלי' : 'מבחן התאמה, מצא רכב בשבילי'}
+      </button>
       <input
         style={{ width: '100%', padding: 10, marginBottom: 12, boxSizing: 'border-box', fontSize: 15 }}
         placeholder="חפש לפי יצרן או דגם, למשל טויוטה"
