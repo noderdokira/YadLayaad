@@ -1,5 +1,5 @@
 // src/Goal.jsx
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from './lib/supabase'
 
 const fmt = n => (n == null || n === '' ? 'אין נתון' : Number(n).toLocaleString('he-IL'))
@@ -92,7 +92,7 @@ export function GoalSetup({ v, m, profile, onBack, onDone }) {
   )
 }
 
-export function GoalBanner({ profile, onOpenCar, onProfileSaved }) {
+export function GoalBanner({ profile, onOpenCar, onOpenProgress, onProfileSaved }) {
   const g = profile?.goal
   if (!g) return null
   const started = g.started_at ? new Date(g.started_at) : new Date()
@@ -120,9 +120,141 @@ export function GoalBanner({ profile, onOpenCar, onProfileSaved }) {
       </div>
       {flavor && <div style={{ fontSize: 12.5, color: '#1565c0', marginBottom: 8 }}>{flavor}</div>}
       <div style={{ display: 'flex', gap: 8 }}>
+        <button onClick={onOpenProgress} style={{ padding: '6px 10px', fontWeight: 700 }}>מעקב והפקדות</button>
         <button onClick={() => onOpenCar(g.product_id)} style={{ padding: '6px 10px' }}>צפייה ברכב</button>
         <button onClick={cancel} style={{ padding: '6px 10px' }}>ביטול יעד</button>
       </div>
+    </div>
+  )
+}
+
+export function GoalProgress({ profile, onBack }) {
+  const g = profile?.goal
+  const [deposits, setDeposits] = useState([])
+  const [amount, setAmount] = useState('')
+  const [note, setNote] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+
+  async function load() {
+    let req = supabase.from('goal_deposits').select('id, amount, note, created_at').order('created_at', { ascending: false })
+    if (g?.started_at) req = req.gte('created_at', g.started_at)
+    const { data, error } = await req
+    if (error) {
+      setErr(error.message.includes('goal_deposits') ? 'נראה שקטע ה SQL של ההפקדות עוד לא הורץ בסופבייס' : error.message)
+      return
+    }
+    setDeposits(data || [])
+  }
+
+  useEffect(() => { load() }, [])
+
+  if (!g) {
+    return (
+      <div style={wrap}>
+        <button onClick={onBack} style={{ marginBottom: 14, padding: '6px 10px' }}>חזרה</button>
+        <div>אין יעד פעיל</div>
+      </div>
+    )
+  }
+
+  const sum = deposits.reduce((s, d) => s + Number(d.amount), 0)
+  const target = g.target ?? 0
+  const remaining = Math.max(0, target - sum)
+  const pct = target > 0 ? Math.min(100, Math.round((100 * sum) / target)) : 100
+  const monthsLeft = g.monthly_saving > 0 ? Math.ceil(remaining / g.monthly_saving) : null
+  const done = target > 0 && remaining === 0
+
+  let etaTxt = ''
+  if (!done && monthsLeft != null) {
+    const d = new Date()
+    d.setMonth(d.getMonth() + monthsLeft)
+    etaTxt = new Intl.DateTimeFormat('he-IL', { month: 'long', year: 'numeric' }).format(d)
+  }
+
+  const style = profile?.motivation_style
+  let flavor = ''
+  if (done) flavor = ''
+  else if (style === 'gamification') flavor = 'כבר ' + deposits.length + ' הפקדות. עוד ' + fmt(remaining) + ' ₪ לניצחון'
+  else if (style === 'deadline') flavor = monthsLeft != null ? 'בקצב שהגדרת נשארו כ ' + monthsLeft + ' חודשים' : ''
+  else flavor = 'הפקדה קבועה של ' + fmt(g.monthly_saving) + ' ₪ בחודש תסגור את זה לבד'
+
+  async function add() {
+    const a = Number(amount)
+    if (!(a > 0)) { setErr('הזן סכום חיובי'); return }
+    setBusy(true); setErr('')
+    const { data: u } = await supabase.auth.getUser()
+    const { error } = await supabase.from('goal_deposits').insert({ user_id: u?.user?.id, amount: a, note: note || null })
+    setBusy(false)
+    if (error) {
+      setErr(error.message.includes('goal_deposits') ? 'נראה שקטע ה SQL של ההפקדות עוד לא הורץ בסופבייס' : error.message)
+      return
+    }
+    setAmount(''); setNote('')
+    load()
+  }
+
+  async function remove(id) {
+    if (!window.confirm('למחוק את ההפקדה?')) return
+    const { error } = await supabase.from('goal_deposits').delete().eq('id', id)
+    if (!error) load()
+  }
+
+  return (
+    <div style={wrap}>
+      <button onClick={onBack} style={{ marginBottom: 14, padding: '6px 10px' }}>חזרה</button>
+      <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 2 }}>מעקב חיסכון</div>
+      <div style={{ color: '#777', marginBottom: 14 }}>{g.name}</div>
+
+      <div style={{ background: '#eee', borderRadius: 999, height: 16, overflow: 'hidden', marginBottom: 8 }}>
+        <div style={{ width: pct + '%', minWidth: pct > 0 ? 8 : 0, height: '100%', background: done ? '#2e7d32' : '#111' }} />
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 12 }}>
+        <div>{fmt(sum)} ₪ מתוך {fmt(target)} ₪</div>
+        <div style={{ fontWeight: 800 }}>{pct}%</div>
+      </div>
+
+      {done ? (
+        <div style={{ fontSize: 15, fontWeight: 800, color: '#2e7d32', marginBottom: 14 }}>
+          הגעת ליעד! הסכום שהגדרת ביד. שלב הקנייה לפניך
+        </div>
+      ) : (
+        <div style={{ fontSize: 13, color: '#555', marginBottom: 4 }}>
+          נשארו {fmt(remaining)} ₪{monthsLeft != null ? ', בקצב שלך עוד כ ' + monthsLeft + ' חודשים, בסביבות ' + etaTxt : ''}
+        </div>
+      )}
+      {flavor && <div style={{ fontSize: 12.5, color: '#1565c0', marginBottom: 14 }}>{flavor}</div>}
+
+      <div style={{ background: '#f6f6f6', borderRadius: 10, padding: 12, marginBottom: 14 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>הפקדה חדשה</div>
+        <input
+          style={{ width: '48%', padding: 8, marginInlineEnd: '4%', boxSizing: 'border-box' }}
+          inputMode="numeric" placeholder="סכום בשקלים"
+          value={amount} onChange={e => setAmount(e.target.value)}
+        />
+        <input
+          style={{ width: '48%', padding: 8, boxSizing: 'border-box' }}
+          placeholder="הערה, לא חובה"
+          value={note} onChange={e => setNote(e.target.value)}
+        />
+        <button onClick={add} disabled={busy} style={{ display: 'block', marginTop: 8, padding: '7px 12px' }}>
+          {busy ? 'שומר' : 'הוספת הפקדה'}
+        </button>
+      </div>
+
+      {deposits.length === 0 && <div style={{ color: '#999', fontSize: 13 }}>עוד אין הפקדות. ההפקדה הראשונה היא הכי חשובה</div>}
+      {deposits.map(d => (
+        <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #eee', gap: 8 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 700, fontSize: 14 }}>{fmt(d.amount)} ₪</div>
+            <div style={{ fontSize: 11.5, color: '#999' }}>
+              {new Date(d.created_at).toLocaleDateString('he-IL')}{d.note ? ' · ' + d.note : ''}
+            </div>
+          </div>
+          <button onClick={() => remove(d.id)} style={{ padding: '4px 8px', fontSize: 12 }}>מחיקה</button>
+        </div>
+      ))}
+      {err && <p style={{ color: '#c00', marginTop: 10 }}>{err}</p>}
     </div>
   )
 }

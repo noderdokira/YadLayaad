@@ -2,8 +2,9 @@
 import { useEffect, useState } from 'react'
 import { supabase } from './lib/supabase'
 import { estimateM } from './lib/costModel'
+import { fetchCarImage } from './lib/carImage'
 import MatchTest from './MatchTest'
-import { GoalBanner, GoalSetup } from './Goal'
+import { GoalBanner, GoalSetup, GoalProgress } from './Goal'
 
 const fmt = n => (n == null || n === '' ? 'אין נתון' : Number(n).toLocaleString('he-IL'))
 
@@ -29,6 +30,14 @@ function Detail({ v, profile, onBack, onProfileSaved, onStartGoal }) {
   const [birth, setBirth] = useState('')
   const [lic, setLic] = useState('')
   const [saving, setSaving] = useState(false)
+  const [img, setImg] = useState(null)
+
+  useEffect(() => {
+    let on = true
+    setImg(null)
+    fetchCarImage(v).then(u => { if (on) setImg(u) })
+    return () => { on = false }
+  }, [v?.id])
 
   const hasDriver = profile?.birth_year != null
   const m = estimateM(
@@ -74,6 +83,7 @@ function Detail({ v, profile, onBack, onProfileSaved, onStartGoal }) {
       <button onClick={onBack} style={{ marginBottom: 14, padding: '6px 10px' }}>חזרה</button>
       <h2 style={{ marginBottom: 4 }}>{v.name}</h2>
       <div style={{ color: '#777', marginBottom: 10 }}>שנת {v.year} · {a.importer || ''}</div>
+      {img && <img src={img} alt={v.name} style={{ width: '100%', borderRadius: 12, marginBottom: 12 }} />}
       <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 4 }}>{fmt(v.market_price)} ₪</div>
       <div style={{ marginBottom: 16, fontSize: 12.5 }}>
         <a href={infoUrl} target="_blank" rel="noreferrer">מידע על הדגם ברשת</a>
@@ -161,6 +171,7 @@ export default function Catalog({ profile, onProfileSaved }) {
   const [selected, setSelected] = useState(null)
   const [mode, setMode] = useState('list')
   const [goalDraft, setGoalDraft] = useState(null)
+  const [showProgress, setShowProgress] = useState(false)
 
   async function search(q) {
     setLoading(true)
@@ -192,6 +203,10 @@ export default function Catalog({ profile, onProfileSaved }) {
 
   const wrap = { maxWidth: 480, margin: '20px auto', fontFamily: 'sans-serif', direction: 'rtl', padding: 16 }
   const row = { padding: 12, borderBottom: '1px solid #eee', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', gap: 10 }
+
+  if (showProgress) {
+    return <GoalProgress profile={profile} onBack={() => setShowProgress(false)} />
+  }
 
   if (goalDraft) {
     return (
@@ -229,7 +244,12 @@ export default function Catalog({ profile, onProfileSaved }) {
 
   return (
     <div style={wrap}>
-      <GoalBanner profile={profile} onOpenCar={openGoalCar} onProfileSaved={onProfileSaved} />
+      <GoalBanner
+        profile={profile}
+        onOpenCar={openGoalCar}
+        onOpenProgress={() => setShowProgress(true)}
+        onProfileSaved={onProfileSaved}
+      />
       <button
         onClick={() => setMode('test')}
         style={{ width: '100%', padding: 12, marginBottom: 12, borderRadius: 10, border: '1px solid #111', background: '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}
