@@ -127,3 +127,18 @@ export function estimateM(vehicle, user = {}, opts = { includeEstimates: true })
     total: opts.includeEstimates ? totalAll : totalSolid,
   }
 }
+
+// הגנת מחירים: מסמן רכב כחשוד אם מחירו נמוך מדי לשנתו
+export function isPriceSuspect(v) {
+  const price = v.market_price ?? 0
+  const year  = v.year ?? 2000
+  if (price <= 0) return false
+  const age   = 2026 - year
+  // סף: 25,000 + 6,000 לכל שנת גיל. מתחת לסף → חשוד
+  return price < 25000 + age * 6000
+}
+
+// הערה לרכבים ישנים (לפני 2010): מחיר מקורי בלבד
+export function isOriginalListPrice(v) {
+  return (v.year ?? 2026) < 2010
+}

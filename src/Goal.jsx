@@ -206,16 +206,22 @@ export function GoalProgress({ profile, onBack }) {
       <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 2 }}>מעקב חיסכון</div>
       <div style={{ color: '#777', marginBottom: 14 }}>{g.name}</div>
 
-      <div style={{ background: '#eee', borderRadius: 999, height: 16, overflow: 'hidden', marginBottom: 8 }}>
-        <div style={{ width: pct + '%', minWidth: pct > 0 ? 8 : 0, height: '100%', background: done ? '#2e7d32' : '#111' }} />
+      <div style={{ position: 'relative', marginBottom: 8 }}>
+        <div style={{ background: '#eee', borderRadius: 999, height: 16, overflow: 'hidden' }}>
+        <div style={{ width: pct + '%', minWidth: pct > 0 ? 8 : 0, height: '100%', background: done ? '#2e7d32' : 'var(--color-primary)', transition: 'width 0.6s ease' }} />
+        </div>
+        {[25, 50, 75].map(m => (
+          <div key={m} style={{ position: 'absolute', left: `${m}%`, top: 0, width: 2, height: 16, background: 'rgba(255,255,255,0.7)', transform: 'translateX(-1px)', pointerEvents: 'none' }} />
+        ))}
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 12 }}>
         <div>{fmt(sum)} ₪ מתוך {fmt(target)} ₪</div>
         <div style={{ fontWeight: 800 }}>{pct}%</div>
       </div>
 
+      {<style>{`@keyframes goalPop{0%{transform:scale(0.5);opacity:0}70%{transform:scale(1.1)}100%{transform:scale(1);opacity:1}}`}</style>}
       {done ? (
-        <div style={{ fontSize: 15, fontWeight: 800, color: '#2e7d32', marginBottom: 14 }}>
+        <div style={{ fontSize: 15, fontWeight: 800, color: '#2e7d32', animation: 'goalPop 0.5s ease', marginBottom: 14 }}>
           הגעת ליעד! הסכום שהגדרת ביד. שלב הקנייה לפניך
         </div>
       ) : (
@@ -237,7 +243,14 @@ export function GoalProgress({ profile, onBack }) {
           placeholder="הערה, לא חובה"
           value={note} onChange={e => setNote(e.target.value)}
         />
-        <button onClick={add} disabled={busy} style={{ display: 'block', marginTop: 8, padding: '7px 12px' }}>
+        <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
+            {[100, 500, 1000, 5000].map(v => (
+              <button key={v} onClick={() => setAmount(String(v))} style={{ padding: '4px 10px', background: amount === String(v) ? 'var(--color-primary)' : 'var(--color-surface)', color: amount === String(v) ? '#fff' : 'var(--color-text)', border: '1px solid var(--color-border)', borderRadius: 6, cursor: 'pointer', fontSize: 13 }}>
+                +{v.toLocaleString()} ₪
+              </button>
+            ))}
+          </div>
+          <button onClick={add} disabled={busy} style={{ display: 'block', marginTop: 8, padding: '7px 12px' }}>
           {busy ? 'שומר' : 'הוספת הפקדה'}
         </button>
       </div>

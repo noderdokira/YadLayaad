@@ -1,4 +1,39 @@
+@import url('https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;700;800&display=swap');
+
+:root {
+  --color-bg: #f0f4f0;
+  --color-surface: #ffffff;
+  --color-primary: #2e7d32;
+  --color-primary-light: #4caf50;
+  --color-primary-dark: #1b5e20;
+  --color-text: #1a2e1b;
+  --color-text-muted: #6b7280;
+  --color-border: #c8e6c9;
+  --color-warn: #ff9800;
+  --color-danger: #ef4444;
+  --shadow: 0 2px 8px rgba(46,125,50,0.10);
+  --radius: 10px;
+}
+
+[data-theme="dark"] {
+  --color-bg: #0f1f10;
+  --color-surface: #1a2e1b;
+  --color-primary: #4caf50;
+  --color-primary-light: #81c784;
+  --color-text: #e8f5e9;
+  --color-text-muted: #a5d6a7;
+  --color-border: #2e4730;
+  --shadow: 0 2px 8px rgba(0,0,0,0.40);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
 body {
   margin: 0;
-  font-family: sans-serif;
+  font-family: 'Rubik', 'Segoe UI', sans-serif;
+  background: var(--color-bg);
+  color: var(--color-text);
+  direction: rtl;
+  min-height: 100vh;
+  transition: background 0.2s, color 0.2s;
 }

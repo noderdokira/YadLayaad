@@ -1,7 +1,7 @@
 // src/Catalog.jsx
 import { useEffect, useState } from 'react'
 import { supabase } from './lib/supabase'
-import { estimateM } from './lib/costModel'
+import { estimateM, isPriceSuspect, isOriginalListPrice } from './lib/costModel'
 import { fetchCarImage } from './lib/carImage'
 import MatchTest from './MatchTest'
 import Compare from './Compare'
@@ -25,7 +25,14 @@ function Tag({ conf }) {
   )
 }
 
-function Detail({ v, profile, onBack, onProfileSaved, onStartGoal }) {
+function matchEmoji(score) {
+  if (score >= 0.75) return '🔥'
+  if (score >= 0.55) return '⚡'
+  if (score >= 0.35) return '👍'
+  return '🤔'
+}
+
+function Detail({ v, profile, onBack, onProfileSaved, onStartGoal, compareSel = [], onToggleCompare }) {
   const [includeEst, setIncludeEst] = useState(true)
   const [edits, setEdits] = useState({})
   const [birth, setBirth] = useState('')
@@ -82,6 +89,7 @@ function Detail({ v, profile, onBack, onProfileSaved, onStartGoal }) {
   return (
     <div style={wrap}>
       <button onClick={onBack} style={{ marginBottom: 14, padding: '6px 10px' }}>חזרה</button>
+        {onToggleCompare && <button onClick={() => onToggleCompare(v)} style={{ marginBottom: 14, marginInlineStart: 8, padding: '6px 10px', background: compareSel.some(x => x.id === v.id) ? '#2e7d32' : '#eee', color: compareSel.some(x => x.id === v.id) ? '#fff' : '#333', borderRadius: 4, border: 'none', cursor: 'pointer' }}>{compareSel.some(x => x.id === v.id) ? '✓ בהשוואה' : '+ השווה'}</button>}
       <h2 style={{ marginBottom: 4 }}>{v.name}</h2>
       <div style={{ color: '#777', marginBottom: 10 }}>שנת {v.year} · {a.importer || ''}</div>
       {img && <img src={img} alt={v.name} style={{ width: '100%', borderRadius: 12, marginBottom: 12 }} />}
@@ -166,19 +174,34 @@ function Detail({ v, profile, onBack, onProfileSaved, onStartGoal }) {
 }
 
 export default function Catalog({ profile, onProfileSaved }) {
-  const [query, setQuery] = useState('')
+  const [query, setQuery] = useState(() => localStorage.getItem('cat_query') || '')
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(false)
   const [selected, setSelected] = useState(null)
   const [mode, setMode] = useState('list')
   const [goalDraft, setGoalDraft] = useState(null)
   const [showProgress, setShowProgress] = useState(false)
-  const [yearMin, setYearMin] = useState(0)
-  const [sortBy, setSortBy] = useState('year_desc')
+  const [yearMin, setYearMin] = useState(() => Number(localStorage.getItem('cat_yearMin')) || 0)
+  const [sortBy, setSortBy] = useState(() => localStorage.getItem('cat_sortBy') || 'year_desc')
   const [favIds, setFavIds] = useState(() => (Array.isArray(profile?.favorites) ? profile.favorites : []))
-  const [favOnly, setFavOnly] = useState(false)
+  const [favOnly, setFavOnly] = useState(() => localStorage.getItem('cat_favOnly') === 'true')
   const [compareSel, setCompareSel] = useState([])
   const [compareView, setCompareView] = useState(false)
+  const [darkMode, setDarkMode] = useState(() => {
+    const saved = localStorage.getItem('theme')
+    if (saved) return saved === 'dark'
+    return window.matchMedia('(prefers-color-scheme: dark)').matches
+  })
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light')
+    localStorage.setItem('theme', darkMode ? 'dark' : 'light')
+  }, [darkMode])
+  useEffect(() => {
+    localStorage.setItem('cat_query', query)
+    localStorage.setItem('cat_yearMin', yearMin)
+    localStorage.setItem('cat_sortBy', sortBy)
+    localStorage.setItem('cat_favOnly', favOnly)
+  }, [query, yearMin, sortBy, favOnly])
 
   async function search(q, ym = yearMin, sb = sortBy, fo = favOnly, favs = favIds) {
     if (fo && (!favs || favs.length === 0)) { setRows([]); return }
@@ -270,6 +293,8 @@ export default function Catalog({ profile, onProfileSaved }) {
         onBack={() => setSelected(null)}
         onProfileSaved={onProfileSaved}
         onStartGoal={total => setGoalDraft({ v: selected, m: total })}
+          compareSel={compareSel}
+          onToggleCompare={toggleCompare}
       />
     )
   }
@@ -339,6 +364,7 @@ export default function Catalog({ profile, onProfileSaved }) {
         >
           ★ מועדפים
         </button>
+        <button onClick={() => setDarkMode(d => !d)} title="החלפת ערכת נושא" style={{ padding: "6px 12px", background: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: 6, cursor: "pointer", fontSize: 18, color: "var(--color-text)" }}>{darkMode ? "☀️" : "🌙"}</button>
       </div>
 
       {compareSel.length > 0 && (
@@ -369,7 +395,7 @@ export default function Catalog({ profile, onProfileSaved }) {
             {monthsLabel(v) && <div style={{ fontSize: 11, color: '#1565c0', marginTop: 2 }}>{monthsLabel(v)}</div>}
           </div>
           <div style={{ textAlign: 'left' }}>
-            <div style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>{fmt(v.market_price)} ₪</div>
+            <div style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>{fmt(v.market_price)} ₪{isPriceSuspect(v) && <span style={{ background: '#ff9800', color: '#fff', borderRadius: 3, padding: '1px 5px', fontSize: 11, marginInlineStart: 4 }}>לא מאומת</span>}</div>
             <div style={{ display: 'flex', gap: 8, marginTop: 4, justifyContent: 'flex-end', alignItems: 'center' }}>
               <button
                 onClick={() => toggleFav(v.id)}

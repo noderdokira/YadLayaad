@@ -21,7 +21,6 @@ export default function App() {
   }, [])
 
   async function loadProfile(uid) {
-    setLoading(true)
     const { data } = await supabase
       .from('profiles')
       .select('*')
