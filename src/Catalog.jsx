@@ -172,22 +172,32 @@ export default function Catalog({ profile, onProfileSaved }) {
   const [mode, setMode] = useState('list')
   const [goalDraft, setGoalDraft] = useState(null)
   const [showProgress, setShowProgress] = useState(false)
+  const [yearMin, setYearMin] = useState(0)
+  const [sortBy, setSortBy] = useState('year_desc')
 
-  async function search(q) {
+  async function search(q, ym = yearMin, sb = sortBy) {
     setLoading(true)
     let req = supabase
       .from('products')
       .select('id, name, year, market_price, addons_once, monthly_cost, attrs')
       .eq('kind', 'car')
       .limit(50)
-    if (q && q.trim()) {
-      req = req.ilike('name', `%${q.trim()}%`).order('market_price', { ascending: true })
-    } else {
-      req = req.order('year', { ascending: false }).order('market_price', { ascending: true })
-    }
+    if (ym > 0) req = req.gte('year', ym)
+    if (q && q.trim()) req = req.ilike('name', `%${q.trim()}%`)
+    if (sb === 'price_desc') req = req.order('market_price', { ascending: false })
+    else if (sb === 'year_desc') req = req.order('year', { ascending: false }).order('market_price', { ascending: true })
+    else req = req.order('market_price', { ascending: true })
     const { data, error } = await req
     setLoading(false)
-    if (!error) setRows(data || [])
+    if (error) return
+    let list = data || []
+    if (sb === 'm_asc') {
+      const u = { birthYear: profile?.birth_year, licenseYear: profile?.license_year }
+      list = [...list].sort((x, y) =>
+        estimateM(x, u, { includeEstimates: true }).total - estimateM(y, u, { includeEstimates: true }).total
+      )
+    }
+    setRows(list)
   }
 
   useEffect(() => { search('') }, [])
@@ -201,8 +211,17 @@ export default function Catalog({ profile, onProfileSaved }) {
     if (data) setSelected(data)
   }
 
+  function monthsLabel(v) {
+    const cap = profile?.monthly_capacity
+    if (!(cap > 0)) return null
+    const target = Math.max(0, (v.market_price ?? 0) - (profile?.current_savings ?? 0))
+    const n = Math.ceil(target / cap)
+    return n <= 0 ? 'בהישג יד כבר עכשיו' : 'כ ' + n + ' חודשי חיסכון בקצב שלך'
+  }
+
   const wrap = { maxWidth: 480, margin: '20px auto', fontFamily: 'sans-serif', direction: 'rtl', padding: 16 }
   const row = { padding: 12, borderBottom: '1px solid #eee', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', gap: 10 }
+  const sel = { flex: 1, padding: 8, fontSize: 13, boxSizing: 'border-box' }
 
   if (showProgress) {
     return <GoalProgress profile={profile} onBack={() => setShowProgress(false)} />
@@ -256,6 +275,32 @@ export default function Catalog({ profile, onProfileSaved }) {
       >
         {profile?.car_prefs ? 'תוצאות ההתאמה שלי' : 'מבחן התאמה, מצא רכב בשבילי'}
       </button>
+
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+        <select
+          value={yearMin}
+          onChange={e => { const ym = Number(e.target.value); setYearMin(ym); search(query, ym, sortBy) }}
+          style={sel}
+        >
+          <option value={0}>כל השנים</option>
+          <option value={2018}>2018 ומעלה</option>
+          <option value={2020}>2020 ומעלה</option>
+          <option value={2022}>2022 ומעלה</option>
+          <option value={2024}>2024 ומעלה</option>
+          <option value={2026}>2026 בלבד</option>
+        </select>
+        <select
+          value={sortBy}
+          onChange={e => { setSortBy(e.target.value); search(query, yearMin, e.target.value) }}
+          style={sel}
+        >
+          <option value="year_desc">חדשים קודם</option>
+          <option value="price_asc">מחיר עולה</option>
+          <option value="price_desc">מחיר יורד</option>
+          <option value="m_asc">עלות חודשית נמוכה</option>
+        </select>
+      </div>
+
       <input
         style={{ width: '100%', padding: 10, marginBottom: 12, boxSizing: 'border-box', fontSize: 15 }}
         placeholder="חפש לפי יצרן או דגם, למשל טויוטה"
@@ -271,6 +316,7 @@ export default function Catalog({ profile, onProfileSaved }) {
           <div>
             <div style={{ fontWeight: 700 }}>{v.name}</div>
             <div style={{ fontSize: 12, color: '#999' }}>שנת {v.year}</div>
+            {monthsLabel(v) && <div style={{ fontSize: 11, color: '#1565c0', marginTop: 2 }}>{monthsLabel(v)}</div>}
           </div>
           <div style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>{fmt(v.market_price)} ₪</div>
         </div>

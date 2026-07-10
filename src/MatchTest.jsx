@@ -6,10 +6,12 @@ import { rankCars } from './lib/matchModel'
 const fmt = n => (n == null || n === '' ? 'אין נתון' : Number(n).toLocaleString('he-IL'))
 
 const QUESTIONS = [
-  { key: 'budgetMax', q: 'כמה בערך תרצה להשקיע בקניית הרכב?',
-    opts: [['עד 50 אלף', 50000], ['עד 90 אלף', 90000], ['עד 130 אלף', 130000], ['עד 180 אלף', 180000]] },
+  { key: 'budgetMax', q: 'כמה בערך תרצה להשקיע בקניית הרכב?', custom: 'או סכום מדויק בשקלים',
+    opts: [['עד 90 אלף', 90000], ['עד 150 אלף', 150000], ['עד 250 אלף', 250000], ['עד 400 אלף', 400000]] },
+  { key: 'minYear', q: 'משנת ייצור מסוימת ומעלה?', custom: 'או שנה מדויקת, למשל 2021',
+    opts: [['לא משנה לי', 0], ['משנת 2020 ומעלה', 2020], ['משנת 2023 ומעלה', 2023], ['רק 2025 ומעלה', 2025]] },
   { key: 'mCeiling', q: 'איזו עלות חודשית תרגיש לך נוחה?',
-    opts: [['עד 1,200 בחודש', 1200], ['עד 1,800 בחודש', 1800], ['עד 2,500 בחודש', 2500], ['בלי הגבלה', 0]] },
+    opts: [['עד 1,500 בחודש', 1500], ['עד 2,500 בחודש', 2500], ['עד 3,500 בחודש', 3500], ['בלי הגבלה', 0]] },
   { key: 'kmMonthly', q: 'כמה תיסע בחודש בערך?',
     opts: [['מעט, עד 500 קמ', 500], ['בינוני, בערך 1,000 קמ', 1000], ['הרבה, 1,500 קמ ומעלה', 1600]] },
   { key: 'newness', q: 'חדש או משומש?',
@@ -23,6 +25,7 @@ const QUESTIONS = [
 export default function MatchTest({ profile, onPick, onBack }) {
   const [step, setStep] = useState(0)
   const [answers, setAnswers] = useState({})
+  const [customVal, setCustomVal] = useState('')
   const [results, setResults] = useState(null)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
@@ -45,13 +48,15 @@ export default function MatchTest({ profile, onPick, onBack }) {
       }
     }
     const budget = prefs.budgetMax || 200000
-    const { data, error: qErr } = await supabase
+    let req = supabase
       .from('products')
       .select('id, name, year, market_price, addons_once, monthly_cost, attrs')
       .eq('kind', 'car')
       .lte('market_price', Math.round(budget * 1.15))
       .order('market_price', { ascending: true })
       .limit(300)
+    if (prefs.minYear > 0) req = req.gte('year', prefs.minYear)
+    const { data, error: qErr } = await req
     setBusy(false)
     if (qErr) { setErr(qErr.message); return }
     setResults(rankCars(data || [], prefs, userCtx))
@@ -61,14 +66,23 @@ export default function MatchTest({ profile, onPick, onBack }) {
     if (profile?.car_prefs) runMatch(profile.car_prefs, false)
   }, [])
 
-  function pick(key, val) {
+  function advance(key, val) {
     const a = { ...answers, [key]: val }
     setAnswers(a)
+    setCustomVal(''); setErr('')
     if (step + 1 < QUESTIONS.length) setTimeout(() => setStep(s => s + 1), 120)
     else runMatch(a, true)
   }
 
-  function redo() { setResults(null); setAnswers({}); setStep(0); setErr('') }
+  function pickCustom() {
+    const cur = QUESTIONS[step]
+    const n = Number(customVal)
+    if (!(n > 0)) { setErr('הזן מספר חיובי'); return }
+    if (cur.key === 'minYear' && (n < 1990 || n > new Date().getFullYear() + 1)) { setErr('שנה לא סבירה'); return }
+    advance(cur.key, n)
+  }
+
+  function redo() { setResults(null); setAnswers({}); setStep(0); setErr(''); setCustomVal('') }
 
   const wrap = { maxWidth: 480, margin: '20px auto', fontFamily: 'sans-serif', direction: 'rtl', padding: 16 }
   const optBtn = { display: 'block', width: '100%', padding: 12, marginBottom: 8, textAlign: 'right', borderRadius: 10, border: '1px solid #ccc', background: '#fafafa', fontSize: 15, cursor: 'pointer' }
@@ -83,7 +97,7 @@ export default function MatchTest({ profile, onPick, onBack }) {
           <button onClick={redo} style={{ padding: '6px 10px' }}>מילוי מחדש</button>
         </div>
         <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 10 }}>הרכבים שהכי מתאימים לך</div>
-        {results.length === 0 && <div style={{ color: '#999' }}>לא נמצאו רכבים מתאימים בתקציב הזה</div>}
+        {results.length === 0 && <div style={{ color: '#999' }}>לא נמצאו רכבים מתאימים לתנאים האלה</div>}
         {results.map(r => (
           <div key={r.v.id} onClick={() => onPick(r.v)}
             style={{ padding: 12, borderBottom: '1px solid #eee', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
@@ -112,8 +126,19 @@ export default function MatchTest({ profile, onPick, onBack }) {
       <div style={{ fontSize: 12, color: '#999', marginBottom: 6 }}>שאלה {step + 1} מתוך {QUESTIONS.length}</div>
       <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 16 }}>{cur.q}</div>
       {cur.opts.map(([label, val], k) => (
-        <button key={k} style={optBtn} onClick={() => pick(cur.key, val)}>{label}</button>
+        <button key={k} style={optBtn} onClick={() => advance(cur.key, val)}>{label}</button>
       ))}
+      {cur.custom && (
+        <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+          <input
+            style={{ flex: 1, padding: 10, boxSizing: 'border-box' }}
+            inputMode="numeric" placeholder={cur.custom}
+            value={customVal} onChange={e => setCustomVal(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') pickCustom() }}
+          />
+          <button onClick={pickCustom} style={{ padding: '8px 14px' }}>המשך</button>
+        </div>
+      )}
       {err && <p style={{ color: '#c00', marginTop: 10 }}>{err}</p>}
     </div>
   )
