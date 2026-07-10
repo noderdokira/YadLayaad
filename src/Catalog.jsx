@@ -4,6 +4,7 @@ import { supabase } from './lib/supabase'
 import { estimateM } from './lib/costModel'
 import { fetchCarImage } from './lib/carImage'
 import MatchTest from './MatchTest'
+import Compare from './Compare'
 import { GoalBanner, GoalSetup, GoalProgress } from './Goal'
 
 const fmt = n => (n == null || n === '' ? 'אין נתון' : Number(n).toLocaleString('he-IL'))
@@ -174,14 +175,20 @@ export default function Catalog({ profile, onProfileSaved }) {
   const [showProgress, setShowProgress] = useState(false)
   const [yearMin, setYearMin] = useState(0)
   const [sortBy, setSortBy] = useState('year_desc')
+  const [favIds, setFavIds] = useState(() => (Array.isArray(profile?.favorites) ? profile.favorites : []))
+  const [favOnly, setFavOnly] = useState(false)
+  const [compareSel, setCompareSel] = useState([])
+  const [compareView, setCompareView] = useState(false)
 
-  async function search(q, ym = yearMin, sb = sortBy) {
+  async function search(q, ym = yearMin, sb = sortBy, fo = favOnly, favs = favIds) {
+    if (fo && (!favs || favs.length === 0)) { setRows([]); return }
     setLoading(true)
     let req = supabase
       .from('products')
       .select('id, name, year, market_price, addons_once, monthly_cost, attrs')
       .eq('kind', 'car')
       .limit(50)
+    if (fo) req = req.in('id', favs)
     if (ym > 0) req = req.gte('year', ym)
     if (q && q.trim()) req = req.ilike('name', `%${q.trim()}%`)
     if (sb === 'price_desc') req = req.order('market_price', { ascending: false })
@@ -211,6 +218,22 @@ export default function Catalog({ profile, onProfileSaved }) {
     if (data) setSelected(data)
   }
 
+  async function toggleFav(id) {
+    const prev = favIds
+    const next = prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    setFavIds(next)
+    const { error } = await supabase.from('profiles').update({ favorites: next }).eq('id', profile.id)
+    if (error) setFavIds(prev)
+  }
+
+  function toggleCompare(v) {
+    setCompareSel(prev => {
+      if (prev.some(x => x.id === v.id)) return prev.filter(x => x.id !== v.id)
+      if (prev.length >= 3) return prev
+      return [...prev, v]
+    })
+  }
+
   function monthsLabel(v) {
     const cap = profile?.monthly_capacity
     if (!(cap > 0)) return null
@@ -220,7 +243,7 @@ export default function Catalog({ profile, onProfileSaved }) {
   }
 
   const wrap = { maxWidth: 480, margin: '20px auto', fontFamily: 'sans-serif', direction: 'rtl', padding: 16 }
-  const row = { padding: 12, borderBottom: '1px solid #eee', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', gap: 10 }
+  const row = { padding: 12, borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between', gap: 10 }
   const sel = { flex: 1, padding: 8, fontSize: 13, boxSizing: 'border-box' }
 
   if (showProgress) {
@@ -257,6 +280,17 @@ export default function Catalog({ profile, onProfileSaved }) {
         profile={profile}
         onBack={() => setMode('list')}
         onPick={v => { setMode('list'); setSelected(v) }}
+      />
+    )
+  }
+
+  if (compareView) {
+    return (
+      <Compare
+        cars={compareSel}
+        profile={profile}
+        onBack={() => setCompareView(false)}
+        onPick={v => { setCompareView(false); setSelected(v) }}
       />
     )
   }
@@ -299,7 +333,21 @@ export default function Catalog({ profile, onProfileSaved }) {
           <option value="price_desc">מחיר יורד</option>
           <option value="m_asc">עלות חודשית נמוכה</option>
         </select>
+        <button
+          onClick={() => { const f = !favOnly; setFavOnly(f); search(query, yearMin, sortBy, f) }}
+          style={{ padding: '6px 10px', fontSize: 12.5, borderRadius: 8, border: '1px solid ' + (favOnly ? '#111' : '#ccc'), background: favOnly ? '#111' : '#fff', color: favOnly ? '#fff' : '#111', cursor: 'pointer', whiteSpace: 'nowrap' }}
+        >
+          ★ מועדפים
+        </button>
       </div>
+
+      {compareSel.length > 0 && (
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, background: '#f6f6f6', borderRadius: 10, padding: 8 }}>
+          <div style={{ fontSize: 12.5, flex: 1 }}>נבחרו {compareSel.length} מתוך 3 להשוואה</div>
+          <button disabled={compareSel.length < 2} onClick={() => setCompareView(true)} style={{ padding: '6px 10px', fontWeight: 700 }}>השוואה</button>
+          <button onClick={() => setCompareSel([])} style={{ padding: '6px 10px' }}>ניקוי</button>
+        </div>
+      )}
 
       <input
         style={{ width: '100%', padding: 10, marginBottom: 12, boxSizing: 'border-box', fontSize: 15 }}
@@ -310,15 +358,36 @@ export default function Catalog({ profile, onProfileSaved }) {
       />
       <button onClick={() => search(query)} style={{ padding: '8px 14px', marginBottom: 12 }}>חיפוש</button>
       {loading && <div style={{ color: '#999' }}>טוען</div>}
-      {!loading && rows.length === 0 && <div style={{ color: '#999' }}>לא נמצאו תוצאות</div>}
+      {!loading && rows.length === 0 && (
+        <div style={{ color: '#999' }}>{favOnly ? 'אין עדיין מועדפים. סמן כוכב על רכבים שמעניינים אותך' : 'לא נמצאו תוצאות'}</div>
+      )}
       {rows.map(v => (
-        <div key={v.id} style={row} onClick={() => setSelected(v)}>
-          <div>
+        <div key={v.id} style={row}>
+          <div onClick={() => setSelected(v)} style={{ flex: 1, cursor: 'pointer' }}>
             <div style={{ fontWeight: 700 }}>{v.name}</div>
             <div style={{ fontSize: 12, color: '#999' }}>שנת {v.year}</div>
             {monthsLabel(v) && <div style={{ fontSize: 11, color: '#1565c0', marginTop: 2 }}>{monthsLabel(v)}</div>}
           </div>
-          <div style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>{fmt(v.market_price)} ₪</div>
+          <div style={{ textAlign: 'left' }}>
+            <div style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>{fmt(v.market_price)} ₪</div>
+            <div style={{ display: 'flex', gap: 8, marginTop: 4, justifyContent: 'flex-end', alignItems: 'center' }}>
+              <button
+                onClick={() => toggleFav(v.id)}
+                title="מועדפים"
+                style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 16, color: favIds.includes(v.id) ? '#b26a00' : '#bbb', padding: 0 }}
+              >
+                {favIds.includes(v.id) ? '★' : '☆'}
+              </button>
+              <label style={{ fontSize: 11, color: '#555', whiteSpace: 'nowrap', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={compareSel.some(x => x.id === v.id)}
+                  onChange={() => toggleCompare(v)}
+                />
+                {' '}השווה
+              </label>
+            </div>
+          </div>
         </div>
       ))}
     </div>
