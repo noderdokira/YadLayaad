@@ -185,3 +185,25 @@ a {
     opacity: 1;
   }
 }
+
+/* אנימציית ההפקדה: קפיצת החזירון והחלפת העיניים */
+.pigBody {
+  transform-box: view-box;
+  transform-origin: 50% 100%;
+}
+
+.pig-go .pigBody {
+  animation: pigBounce 0.85s ease both;
+}
+
+@keyframes pigBounce {
+  0% { transform: scale(1); }
+  26% { transform: scale(1.09, 0.87); }
+  55% { transform: scale(0.955, 1.07); }
+  80% { transform: scale(1.035, 0.975); }
+  100% { transform: scale(1); }
+}
+
+.pigEyeH { opacity: 0; }
+.pig-go .pigEyeO { opacity: 0; }
+.pig-go .pigEyeH { opacity: 1; }

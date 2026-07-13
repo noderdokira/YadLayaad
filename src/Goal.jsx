@@ -1,7 +1,8 @@
 // src/Goal.jsx
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { supabase } from './lib/supabase'
 import { cleanName } from './lib/priceBook'
+import { PiggyBank, flyCoin } from './DepositFx'
 
 const fmt = n => (n == null || n === '' ? 'אין נתון' : Number(n).toLocaleString('he-IL'))
 const wrap = { maxWidth: 480, margin: '20px auto', direction: 'rtl', padding: 16 }
@@ -131,6 +132,8 @@ export function GoalBanner({ profile, onOpenCar, onOpenProgress, onProfileSaved 
 
 export function GoalProgress({ profile, onBack }) {
   const g = profile?.goal
+  const pigRef = useRef(null)
+  const amountRef = useRef(null)
   const [deposits, setDeposits] = useState([])
   const [amount, setAmount] = useState('')
   const [note, setNote] = useState('')
@@ -192,6 +195,7 @@ export function GoalProgress({ profile, onBack }) {
       return
     }
     setAmount(''); setNote('')
+    flyCoin({ fromEl: amountRef.current, pigEl: pigRef.current, amount: a })
     load()
   }
 
@@ -206,6 +210,10 @@ export function GoalProgress({ profile, onBack }) {
       <button onClick={onBack} style={{ marginBottom: 14, padding: '6px 10px' }}>חזרה</button>
       <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 2 }}>מעקב חיסכון</div>
       <div style={{ color: 'var(--color-text-muted)', marginBottom: 14 }}>{cleanName(g.name)}</div>
+
+      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 6 }}>
+        <PiggyBank ref={pigRef} width={132} />
+      </div>
 
       <div style={{ position: 'relative', marginBottom: 8 }}>
         <div style={{ background: 'var(--color-surface-2)', border: '1px solid var(--color-border)', borderRadius: 999, height: 16, overflow: 'hidden' }}>
@@ -234,6 +242,7 @@ export function GoalProgress({ profile, onBack }) {
       <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, padding: 12, marginBottom: 14 }}>
         <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>הפקדה חדשה</div>
         <input
+          ref={amountRef}
           style={{ width: '48%', padding: 8, marginInlineEnd: '4%' }}
           inputMode="numeric" placeholder="סכום בשקלים"
           value={amount} onChange={e => setAmount(e.target.value)}
