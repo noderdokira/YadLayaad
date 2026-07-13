@@ -269,3 +269,17 @@ a {
   0%, 100% { transform: scale(0.4); opacity: 0.4; }
   50% { transform: scale(1.15); opacity: 1; }
 }
+
+/* עיני הכוכבים ב־75% ומעלה */
+.starEye {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: starPulse 1.3s ease-in-out infinite;
+}
+
+.starEye.se2 { animation-delay: 0.45s; }
+
+@keyframes starPulse {
+  0%, 100% { transform: scale(1) rotate(-4deg); }
+  50% { transform: scale(1.22) rotate(7deg); }
+}
