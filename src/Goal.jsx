@@ -1,9 +1,10 @@
 // src/Goal.jsx
 import { useEffect, useState } from 'react'
 import { supabase } from './lib/supabase'
+import { cleanName } from './lib/priceBook'
 
 const fmt = n => (n == null || n === '' ? 'אין נתון' : Number(n).toLocaleString('he-IL'))
-const wrap = { maxWidth: 480, margin: '20px auto', fontFamily: 'sans-serif', direction: 'rtl', padding: 16 }
+const wrap = { maxWidth: 480, margin: '20px auto', direction: 'rtl', padding: 16 }
 
 function Line({ label, val, strong }) {
   return (
@@ -58,9 +59,9 @@ export function GoalSetup({ v, m, profile, onBack, onDone }) {
     <div style={wrap}>
       <button onClick={onBack} style={{ marginBottom: 14, padding: '6px 10px' }}>חזרה</button>
       <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>התחלת חיסכון ליעד</div>
-      <div style={{ color: '#777', marginBottom: 14 }}>{v.name} · שנת {v.year}</div>
+      <div style={{ color: 'var(--color-text-muted)', marginBottom: 14 }}>{v.name} · שנת {v.year}</div>
 
-      <div style={{ background: '#f6f6f6', borderRadius: 10, padding: 12, marginBottom: 14, fontSize: 14 }}>
+      <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, padding: 12, marginBottom: 14, fontSize: 14 }}>
         <Line label="מחיר הרכב" val={fmt(price) + ' ₪'} />
         <Line label="כבר חסכת" val={fmt(saved) + ' ₪'} />
         <Line label="נשאר לחסוך" val={fmt(target) + ' ₪'} strong />
@@ -69,7 +70,7 @@ export function GoalSetup({ v, m, profile, onBack, onDone }) {
 
       <div style={{ fontSize: 13, marginBottom: 6 }}>כמה תפריש בכל חודש?</div>
       <input
-        style={{ display: 'block', width: '100%', padding: 10, marginBottom: 10, boxSizing: 'border-box' }}
+        style={{ display: 'block', width: '100%', padding: 10, marginBottom: 10 }}
         inputMode="numeric" placeholder="סכום בשקלים"
         value={monthly} onChange={e => setMonthly(e.target.value)}
       />
@@ -79,15 +80,15 @@ export function GoalSetup({ v, m, profile, onBack, onDone }) {
         </div>
       )}
       {ambitious && (
-        <div style={{ fontSize: 12, color: '#b26a00', marginBottom: 10 }}>
+        <div style={{ fontSize: 12, color: 'var(--color-warn)', marginBottom: 10 }}>
           הקצב הזה מעל מחצית מההכנסה שציינת, שאפתני מאוד
         </div>
       )}
-      <button onClick={start} disabled={saving}
-        style={{ width: '100%', padding: 12, borderRadius: 10, border: 'none', background: '#111', color: '#fff', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>
+      <button onClick={start} disabled={saving} className="btn-primary"
+        style={{ width: '100%', padding: 12, borderRadius: 10, fontSize: 15 }}>
         {saving ? 'שומר' : 'התחלת החיסכון'}
       </button>
-      {err && <p style={{ color: '#c00', marginTop: 10 }}>{err}</p>}
+      {err && <p style={{ color: 'var(--color-danger)', marginTop: 10 }}>{err}</p>}
     </div>
   )
 }
@@ -113,14 +114,14 @@ export function GoalBanner({ profile, onOpenCar, onOpenProgress, onProfileSaved 
   }
 
   return (
-    <div style={{ border: '1px solid #111', borderRadius: 12, padding: 12, marginBottom: 14 }}>
-      <div style={{ fontWeight: 800, marginBottom: 2 }}>היעד שלך: {g.name}</div>
-      <div style={{ fontSize: 13, color: '#555', marginBottom: 6 }}>
+    <div style={{ border: '1px solid var(--color-primary)', background: 'var(--color-surface)', borderRadius: 12, padding: 12, marginBottom: 14, boxShadow: 'var(--shadow)' }}>
+      <div style={{ fontWeight: 800, marginBottom: 2 }}>היעד שלך: {cleanName(g.name)}</div>
+      <div style={{ fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 6 }}>
         {fmt(g.monthly_saving)} ₪ בחודש{left != null ? ' · עוד כ ' + left + ' חודשים' : ''}
       </div>
-      {flavor && <div style={{ fontSize: 12.5, color: '#1565c0', marginBottom: 8 }}>{flavor}</div>}
+      {flavor && <div style={{ fontSize: 12.5, color: 'var(--color-info)', marginBottom: 8 }}>{flavor}</div>}
       <div style={{ display: 'flex', gap: 8 }}>
-        <button onClick={onOpenProgress} style={{ padding: '6px 10px', fontWeight: 700 }}>מעקב והפקדות</button>
+        <button onClick={onOpenProgress} className="btn-primary" style={{ padding: '6px 10px' }}>מעקב והפקדות</button>
         <button onClick={() => onOpenCar(g.product_id)} style={{ padding: '6px 10px' }}>צפייה ברכב</button>
         <button onClick={cancel} style={{ padding: '6px 10px' }}>ביטול יעד</button>
       </div>
@@ -204,14 +205,14 @@ export function GoalProgress({ profile, onBack }) {
     <div style={wrap}>
       <button onClick={onBack} style={{ marginBottom: 14, padding: '6px 10px' }}>חזרה</button>
       <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 2 }}>מעקב חיסכון</div>
-      <div style={{ color: '#777', marginBottom: 14 }}>{g.name}</div>
+      <div style={{ color: 'var(--color-text-muted)', marginBottom: 14 }}>{cleanName(g.name)}</div>
 
       <div style={{ position: 'relative', marginBottom: 8 }}>
-        <div style={{ background: '#eee', borderRadius: 999, height: 16, overflow: 'hidden' }}>
-        <div style={{ width: pct + '%', minWidth: pct > 0 ? 8 : 0, height: '100%', background: done ? '#2e7d32' : 'var(--color-primary)', transition: 'width 0.6s ease' }} />
+        <div style={{ background: 'var(--color-surface-2)', border: '1px solid var(--color-border)', borderRadius: 999, height: 16, overflow: 'hidden' }}>
+          <div style={{ width: pct + '%', minWidth: pct > 0 ? 8 : 0, height: '100%', background: done ? 'var(--color-primary-dark)' : 'var(--color-primary)', transition: 'width 0.6s ease' }} />
         </div>
         {[25, 50, 75].map(m => (
-          <div key={m} style={{ position: 'absolute', left: `${m}%`, top: 0, width: 2, height: 16, background: 'rgba(255,255,255,0.7)', transform: 'translateX(-1px)', pointerEvents: 'none' }} />
+          <div key={m} style={{ position: 'absolute', left: `${m}%`, top: 0, width: 2, height: 16, background: 'var(--color-bg)', opacity: 0.8, transform: 'translateX(-1px)', pointerEvents: 'none' }} />
         ))}
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 12 }}>
@@ -219,55 +220,56 @@ export function GoalProgress({ profile, onBack }) {
         <div style={{ fontWeight: 800 }}>{pct}%</div>
       </div>
 
-      {<style>{`@keyframes goalPop{0%{transform:scale(0.5);opacity:0}70%{transform:scale(1.1)}100%{transform:scale(1);opacity:1}}`}</style>}
       {done ? (
-        <div style={{ fontSize: 15, fontWeight: 800, color: '#2e7d32', animation: 'goalPop 0.5s ease', marginBottom: 14 }}>
+        <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--color-primary)', animation: 'goalPop 0.5s ease', marginBottom: 14 }}>
           הגעת ליעד! הסכום שהגדרת ביד. שלב הקנייה לפניך
         </div>
       ) : (
-        <div style={{ fontSize: 13, color: '#555', marginBottom: 4 }}>
+        <div style={{ fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 4 }}>
           נשארו {fmt(remaining)} ₪{monthsLeft != null ? ', בקצב שלך עוד כ ' + monthsLeft + ' חודשים, בסביבות ' + etaTxt : ''}
         </div>
       )}
-      {flavor && <div style={{ fontSize: 12.5, color: '#1565c0', marginBottom: 14 }}>{flavor}</div>}
+      {flavor && <div style={{ fontSize: 12.5, color: 'var(--color-info)', marginBottom: 14 }}>{flavor}</div>}
 
-      <div style={{ background: '#f6f6f6', borderRadius: 10, padding: 12, marginBottom: 14 }}>
+      <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, padding: 12, marginBottom: 14 }}>
         <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>הפקדה חדשה</div>
         <input
-          style={{ width: '48%', padding: 8, marginInlineEnd: '4%', boxSizing: 'border-box' }}
+          style={{ width: '48%', padding: 8, marginInlineEnd: '4%' }}
           inputMode="numeric" placeholder="סכום בשקלים"
           value={amount} onChange={e => setAmount(e.target.value)}
         />
         <input
-          style={{ width: '48%', padding: 8, boxSizing: 'border-box' }}
+          style={{ width: '48%', padding: 8 }}
           placeholder="הערה, לא חובה"
           value={note} onChange={e => setNote(e.target.value)}
         />
-        <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
-            {[100, 500, 1000, 5000].map(v => (
-              <button key={v} onClick={() => setAmount(String(v))} style={{ padding: '4px 10px', background: amount === String(v) ? 'var(--color-primary)' : 'var(--color-surface)', color: amount === String(v) ? '#fff' : 'var(--color-text)', border: '1px solid var(--color-border)', borderRadius: 6, cursor: 'pointer', fontSize: 13 }}>
-                +{v.toLocaleString()} ₪
-              </button>
-            ))}
-          </div>
-          <button onClick={add} disabled={busy} style={{ display: 'block', marginTop: 8, padding: '7px 12px' }}>
+        <div style={{ display: 'flex', gap: 6, marginTop: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+          {[100, 500, 1000, 5000].map(v => (
+            <button key={v} onClick={() => setAmount(String(v))}
+              className={amount === String(v) ? 'btn-primary' : ''}
+              style={{ padding: '4px 10px', borderRadius: 6, fontSize: 13 }}>
+              +{v.toLocaleString()} ₪
+            </button>
+          ))}
+        </div>
+        <button onClick={add} disabled={busy} className="btn-primary" style={{ display: 'block', marginTop: 8, padding: '7px 12px' }}>
           {busy ? 'שומר' : 'הוספת הפקדה'}
         </button>
       </div>
 
-      {deposits.length === 0 && <div style={{ color: '#999', fontSize: 13 }}>עוד אין הפקדות. ההפקדה הראשונה היא הכי חשובה</div>}
+      {deposits.length === 0 && <div style={{ color: 'var(--color-text-muted)', fontSize: 13 }}>עוד אין הפקדות. ההפקדה הראשונה היא הכי חשובה</div>}
       {deposits.map(d => (
-        <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #eee', gap: 8 }}>
+        <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--color-border)', gap: 8 }}>
           <div style={{ flex: 1 }}>
             <div style={{ fontWeight: 700, fontSize: 14 }}>{fmt(d.amount)} ₪</div>
-            <div style={{ fontSize: 11.5, color: '#999' }}>
+            <div style={{ fontSize: 11.5, color: 'var(--color-text-muted)' }}>
               {new Date(d.created_at).toLocaleDateString('he-IL')}{d.note ? ' · ' + d.note : ''}
             </div>
           </div>
           <button onClick={() => remove(d.id)} style={{ padding: '4px 8px', fontSize: 12 }}>מחיקה</button>
         </div>
       ))}
-      {err && <p style={{ color: '#c00', marginTop: 10 }}>{err}</p>}
+      {err && <p style={{ color: 'var(--color-danger)', marginTop: 10 }}>{err}</p>}
     </div>
   )
 }

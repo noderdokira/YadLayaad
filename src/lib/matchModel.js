@@ -1,11 +1,12 @@
 // src/lib/matchModel.js
 // ציון התאמה 0 עד 100 לכל רכב, לפי העדפות המשתמש ונתוני הפרופיל.
+// הרשימה שמגיעה לכאן היא אחרי נרמול (normalizeCars): מחיר מוצג, דגל suspect וכו'.
 import { estimateM, isPriceSuspect } from './costModel'
 
 const WEIGHTS = {
-  price:    { price: 0.4,  monthly: 0.2,  newness: 0.15, feasible: 0.25 },
-  monthly:  { price: 0.2,  monthly: 0.4,  newness: 0.15, feasible: 0.25 },
-  balanced: { price: 0.3,  monthly: 0.3,  newness: 0.15, feasible: 0.25 },
+  price: { price: 0.4, monthly: 0.2, newness: 0.15, feasible: 0.25 },
+  monthly: { price: 0.2, monthly: 0.4, newness: 0.15, feasible: 0.25 },
+  balanced: { price: 0.3, monthly: 0.3, newness: 0.15, feasible: 0.25 },
 }
 
 export function scoreCar(v, prefs = {}, user = {}) {
@@ -64,7 +65,7 @@ export function scoreCar(v, prefs = {}, user = {}) {
 
 export function rankCars(list, prefs, user, topN = 12) {
   return (list || [])
-    .filter(v => !isPriceSuspect(v))
+    .filter(v => !(v.suspect ?? isPriceSuspect(v)))
     .map(v => ({ v, ...scoreCar(v, prefs, user) }))
     .sort((a, b) => b.score - a.score || (a.v.market_price ?? 0) - (b.v.market_price ?? 0))
     .slice(0, topN)

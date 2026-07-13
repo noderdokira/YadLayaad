@@ -1,8 +1,9 @@
 // src/Compare.jsx
 import { estimateM } from './lib/costModel'
+import { savingsLevel } from './lib/priceBook'
 
 const fmt = n => (n == null || n === '' ? 'אין נתון' : Number(n).toLocaleString('he-IL'))
-const wrap = { maxWidth: 480, margin: '20px auto', fontFamily: 'sans-serif', direction: 'rtl', padding: 16 }
+const wrap = { maxWidth: 480, margin: '20px auto', direction: 'rtl', padding: 16 }
 
 export default function Compare({ cars, profile, onBack, onPick }) {
   const user = { birthYear: profile?.birth_year, licenseYear: profile?.license_year }
@@ -11,32 +12,32 @@ export default function Compare({ cars, profile, onBack, onPick }) {
 
   const cols = (cars || []).map(v => {
     const m = estimateM(v, user, { includeEstimates: true })
-    const target = Math.max(0, (v.market_price ?? 0) - savings)
-    const months = cap > 0 ? Math.ceil(target / cap) : null
+    const lvl = savingsLevel(v.market_price, cap, savings)
     const byKey = {}
     m.components.forEach(c => { byKey[c.key] = c.monthly })
-    return { v, m, months, byKey }
+    return { v, m, lvl, byKey }
   })
 
   const rows = [
-    { label: 'מחיר קנייה', get: c => fmt(c.v.market_price) + ' ₪' },
+    { label: 'מחיר', get: c => fmt(c.v.market_price) + ' ₪' },
     { label: 'שנה', get: c => c.v.year },
     { label: 'עלות חודשית משוערת', get: c => fmt(c.m.total) + ' ₪', strong: true },
     { label: 'אגרה ורדיו', get: c => fmt(c.byKey.agra) + ' ₪' },
     { label: 'דלק', get: c => fmt(c.byKey.fuel) + ' ₪' },
     { label: 'ביטוח, הערכה', get: c => fmt(c.byKey.insurance) + ' ₪' },
     { label: 'טיפולים, הערכה', get: c => fmt(c.byKey.maintenance) + ' ₪' },
-    { label: 'חודשי חיסכון בקצב שלך', get: c => (c.months != null ? 'כ ' + c.months : 'אין נתון'), strong: true },
+    { label: 'חודשי חיסכון בקצב שלך', get: c => (c.lvl ? 'כ ' + c.lvl.months : 'אין נתון'), strong: true },
+    { label: 'רמת חיסכון', get: c => (c.lvl ? '💰'.repeat(c.lvl.level) : 'אין נתון') },
   ]
 
-  const cell = { padding: '8px 6px', borderBottom: '1px solid #eee', fontSize: 12.5, textAlign: 'center' }
+  const cell = { padding: '8px 6px', borderBottom: '1px solid var(--color-border)', fontSize: 12.5, textAlign: 'center' }
   const head = { ...cell, fontWeight: 700, fontSize: 12 }
 
   return (
     <div style={wrap}>
       <button onClick={onBack} style={{ marginBottom: 14, padding: '6px 10px' }}>חזרה לקטלוג</button>
       <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 10 }}>השוואת רכבים</div>
-      {cols.length < 2 && <div style={{ color: '#999' }}>בחר לפחות שני רכבים להשוואה</div>}
+      {cols.length < 2 && <div style={{ color: 'var(--color-text-muted)' }}>בחר לפחות שני רכבים להשוואה</div>}
       {cols.length >= 2 && (
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
@@ -64,7 +65,7 @@ export default function Compare({ cars, profile, onBack, onPick }) {
           </tbody>
         </table>
       )}
-      <div style={{ fontSize: 11.5, color: '#999', marginTop: 10 }}>
+      <div style={{ fontSize: 11.5, color: 'var(--color-text-muted)', marginTop: 10 }}>
         הביטוח והטיפולים הם הערכות לפי הפרופיל שלך, לא הצעת מחיר.
       </div>
     </div>

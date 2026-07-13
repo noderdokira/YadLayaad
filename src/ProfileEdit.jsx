@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { supabase } from './lib/supabase'
 
-export default function ProfileEdit({ profile, userId, onDone, onCancel }) {
+export default function ProfileEdit({ profile, userId, onDone, onCancel, onRetakeSurvey }) {
   const [license, setLicense] = useState(profile?.license ?? '')
   const [birthYear, setBirthYear] = useState(profile?.birth_year ?? '')
   const [licenseYear, setLicenseYear] = useState(profile?.license_year ?? '')
@@ -33,23 +33,38 @@ export default function ProfileEdit({ profile, userId, onDone, onCancel }) {
     onDone()
   }
 
-  const wrap = { maxWidth: 360, margin: '60px auto', fontFamily: 'sans-serif', direction: 'rtl', padding: 16 }
-  const input = { display: 'block', width: '100%', padding: 10, marginBottom: 10, boxSizing: 'border-box' }
+  const wrap = { maxWidth: 360, margin: '60px auto', direction: 'rtl', padding: 16 }
+  const input = { display: 'block', width: '100%', padding: 10, marginBottom: 10 }
 
   return (
     <div style={wrap}>
       <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>עריכת פרופיל</div>
-      <div style={{ fontSize: 13, color: '#777', marginBottom: 16 }}>הנתונים משפיעים על הערכת הביטוח בכל רכב</div>
+      <div style={{ fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 16 }}>
+        הנתונים משפיעים על הערכת הביטוח בכל רכב
+      </div>
       <input style={input} placeholder="סוג רישיון נהיגה" value={license} onChange={e => setLicense(e.target.value)} />
       <input style={input} placeholder="שנת לידה, למשל 2004" inputMode="numeric" value={birthYear} onChange={e => setBirthYear(e.target.value)} />
       <input style={input} placeholder="שנת הוצאת רישיון, למשל 2022" inputMode="numeric" value={licenseYear} onChange={e => setLicenseYear(e.target.value)} />
       <div style={{ display: 'flex', gap: 8 }}>
-        <button onClick={save} disabled={saving} style={{ flex: 1, padding: 12, borderRadius: 10, border: 'none', background: '#111', color: '#fff', fontWeight: 700, cursor: 'pointer' }}>
+        <button onClick={save} disabled={saving} className="btn-primary" style={{ flex: 1, padding: 12, borderRadius: 10 }}>
           {saving ? 'שומר' : 'שמירה'}
         </button>
         <button onClick={onCancel} style={{ padding: 12, borderRadius: 10 }}>ביטול</button>
       </div>
-      {err && <p style={{ color: '#c00', marginTop: 10 }}>{err}</p>}
+
+      {onRetakeSurvey && (
+        <div style={{ marginTop: 22, borderTop: '1px solid var(--color-border)', paddingTop: 14 }}>
+          <div style={{ fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 8, lineHeight: 1.5 }}>
+            השתנה משהו בהכנסה, בחיסכון או בהרגלים? אפשר לענות מחדש על שאלון ההיכרות
+            והנתונים הכספיים, וכל החישובים יתעדכנו בהתאם.
+          </div>
+          <button onClick={onRetakeSurvey} style={{ width: '100%', padding: 11, borderRadius: 10, fontWeight: 700 }}>
+            מילוי השאלון מחדש
+          </button>
+        </div>
+      )}
+
+      {err && <p style={{ color: 'var(--color-danger)', marginTop: 10 }}>{err}</p>}
     </div>
   )
 }

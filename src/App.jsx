@@ -6,13 +6,12 @@ import Survey from './Survey'
 import Catalog from './Catalog'
 import ProfileEdit from './ProfileEdit'
 
-const STYLE_LABEL = { automation: 'אוטומציה', gamification: 'גיימיפיקציה', deadline: 'דדליין' }
-
 export default function App() {
   const [session, setSession] = useState(null)
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
+  const [retaking, setRetaking] = useState(false)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session))
@@ -35,30 +34,40 @@ export default function App() {
     else { setProfile(null); setLoading(false) }
   }, [session])
 
-  const wrap = { maxWidth: 480, margin: '20px auto', fontFamily: 'sans-serif', direction: 'rtl', padding: 16 }
+  const wrap = { maxWidth: 480, margin: '20px auto', direction: 'rtl', padding: 16 }
 
   if (!session) return <Auth />
   if (loading) return <div style={wrap}>טוען</div>
   if (!profile || profile.sigma == null) {
     return <Survey userId={session.user.id} onDone={() => loadProfile(session.user.id)} />
   }
+  if (retaking) {
+    return (
+      <Survey
+        userId={session.user.id}
+        profile={profile}
+        onCancel={() => setRetaking(false)}
+        onDone={() => { setRetaking(false); setEditing(false); loadProfile(session.user.id) }}
+      />
+    )
+  }
   if (editing) {
     return (
       <ProfileEdit
         profile={profile}
         userId={session.user.id}
+        onRetakeSurvey={() => setRetaking(true)}
         onDone={() => { setEditing(false); loadProfile(session.user.id) }}
         onCancel={() => setEditing(false)}
       />
     )
   }
 
-  const pct = Math.round(profile.sigma * 100)
   return (
     <div>
       <div style={{ ...wrap, marginBottom: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ fontSize: 13, color: '#555' }}>
-          צנע {pct}% · {STYLE_LABEL[profile.motivation_style] || profile.motivation_style}
+        <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--color-primary)' }}>
+          יד ליעד 🚗
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button onClick={() => setEditing(true)} style={{ padding: '6px 10px' }}>עריכת פרופיל</button>

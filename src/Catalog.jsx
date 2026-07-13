@@ -1,35 +1,75 @@
 // src/Catalog.jsx
 import { useEffect, useState } from 'react'
 import { supabase } from './lib/supabase'
-import { estimateM, isPriceSuspect, isOriginalListPrice } from './lib/costModel'
+import { estimateM } from './lib/costModel'
 import { fetchCarImage } from './lib/carImage'
+import { normalizeCars, priceTag, usedSearchUrl, savingsLevel, PRICES_UPDATED } from './lib/priceBook'
 import MatchTest from './MatchTest'
 import Compare from './Compare'
 import { GoalBanner, GoalSetup, GoalProgress } from './Goal'
 
 const fmt = n => (n == null || n === '' ? 'אין נתון' : Number(n).toLocaleString('he-IL'))
 
+const PRODUCT_COLS = 'id, name, year, market_price, addons_once, monthly_cost, attrs'
+
 const CONF = {
-  precise: { txt: 'מדויק', color: '#2e7d32' },
-  calculated: { txt: 'מחושב', color: '#1565c0' },
-  default: { txt: 'לפי ברירת מחדל', color: '#8a6d00' },
-  estimate: { txt: 'הערכה', color: '#b26a00' },
+  precise: { txt: 'מדויק' },
+  calculated: { txt: 'מחושב' },
+  default: { txt: 'לפי ברירת מחדל' },
+  estimate: { txt: 'הערכה' },
 }
 
 function Tag({ conf }) {
   const c = CONF[conf] || CONF.estimate
   return (
-    <span style={{ fontSize: 11, color: c.color, border: `1px solid ${c.color}`, borderRadius: 8, padding: '1px 7px', marginInlineStart: 8, whiteSpace: 'nowrap' }}>
+    <span style={{ fontSize: 11, color: 'var(--color-info)', border: '1px solid var(--color-info)', borderRadius: 8, padding: '1px 7px', marginInlineStart: 8, whiteSpace: 'nowrap' }}>
       {c.txt}
     </span>
   )
 }
 
-function matchEmoji(score) {
-  if (score >= 0.75) return '🔥'
-  if (score >= 0.55) return '⚡'
-  if (score >= 0.35) return '👍'
-  return '🤔'
+const TAG_COLORS = {
+  ok: 'var(--color-primary)',
+  info: 'var(--color-info)',
+  warn: 'var(--color-warn)',
+  muted: 'var(--color-text-muted)',
+}
+
+function PriceBadge({ v, size = 10.5 }) {
+  const t = priceTag(v)
+  if (!t) return null
+  const c = TAG_COLORS[t.kind] || TAG_COLORS.muted
+  return (
+    <span style={{ fontSize: size, color: c, border: `1px solid ${c}`, borderRadius: 8, padding: '1px 6px', whiteSpace: 'nowrap' }}>
+      {t.txt}
+    </span>
+  )
+}
+
+// מד רמת חיסכון: 1 עד 5 שקיות כסף, כמה קשה יהיה לחסוך לרכב הזה
+function MoneyMeter({ v, profile, withLabel = false }) {
+  const lvl = savingsLevel(v.market_price, profile?.monthly_capacity, profile?.current_savings)
+  if (!lvl) return null
+  return (
+    <span title={'רמת חיסכון: ' + lvl.label + ' (' + lvl.level + ' מתוך 5)'} style={{ fontSize: 12, letterSpacing: 1, whiteSpace: 'nowrap' }}>
+      {Array.from({ length: 5 }, (_, i) => (
+        <span key={i} style={{ opacity: i < lvl.level ? 1 : 0.22 }}>💰</span>
+      ))}
+      {withLabel && <span style={{ fontSize: 11.5, color: 'var(--color-text-muted)', marginInlineStart: 6 }}>{lvl.label}</span>}
+    </span>
+  )
+}
+
+function CarImage({ v, onClick, height = null }) {
+  const [img, setImg] = useState(null)
+  useEffect(() => {
+    let on = true
+    setImg(null)
+    fetchCarImage(v).then(u => { if (on) setImg(u) })
+    return () => { on = false }
+  }, [v?.name])
+  if (img) return <img className="car-card-img" src={img} alt={v.name} onClick={onClick} loading="lazy" style={height ? { aspectRatio: 'auto', height } : undefined} />
+  return <div className="car-card-imgless" onClick={onClick}>🚗</div>
 }
 
 function Detail({ v, profile, onBack, onProfileSaved, onStartGoal, compareSel = [], onToggleCompare }) {
@@ -38,14 +78,6 @@ function Detail({ v, profile, onBack, onProfileSaved, onStartGoal, compareSel = 
   const [birth, setBirth] = useState('')
   const [lic, setLic] = useState('')
   const [saving, setSaving] = useState(false)
-  const [img, setImg] = useState(null)
-
-  useEffect(() => {
-    let on = true
-    setImg(null)
-    fetchCarImage(v).then(u => { if (on) setImg(u) })
-    return () => { on = false }
-  }, [v?.id])
 
   const hasDriver = profile?.birth_year != null
   const m = estimateM(
@@ -67,6 +99,7 @@ function Detail({ v, profile, onBack, onProfileSaved, onStartGoal, compareSel = 
   const missing = rows.some(c => c.shown == null)
   const dirty = !includeEst || Object.values(edits).some(x => x !== undefined && x !== '')
   const infoUrl = 'https://www.google.com/search?q=' + encodeURIComponent(v.name + ' ' + (v.year || ''))
+  const lvl = savingsLevel(v.market_price, profile?.monthly_capacity, profile?.current_savings)
 
   async function saveDriver() {
     setSaving(true)
@@ -83,28 +116,61 @@ function Detail({ v, profile, onBack, onProfileSaved, onStartGoal, compareSel = 
   }
 
   const a = v.attrs || {}
-  const wrap = { maxWidth: 480, margin: '20px auto', fontFamily: 'sans-serif', direction: 'rtl', padding: 16 }
-  const rowSt = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid #eee', gap: 10 }
+  const wrap = { maxWidth: 480, margin: '20px auto', direction: 'rtl', padding: 16 }
+  const rowSt = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--color-border)', gap: 10 }
+  const inCompare = compareSel.some(x => x.id === v.id)
 
   return (
     <div style={wrap}>
-      <button onClick={onBack} style={{ marginBottom: 14, padding: '6px 10px' }}>חזרה</button>
-        {onToggleCompare && <button onClick={() => onToggleCompare(v)} style={{ marginBottom: 14, marginInlineStart: 8, padding: '6px 10px', background: compareSel.some(x => x.id === v.id) ? '#2e7d32' : '#eee', color: compareSel.some(x => x.id === v.id) ? '#fff' : '#333', borderRadius: 4, border: 'none', cursor: 'pointer' }}>{compareSel.some(x => x.id === v.id) ? '✓ בהשוואה' : '+ השווה'}</button>}
-      <h2 style={{ marginBottom: 4 }}>{v.name}</h2>
-      <div style={{ color: '#777', marginBottom: 10 }}>שנת {v.year} · {a.importer || ''}</div>
-      {img && <img src={img} alt={v.name} style={{ width: '100%', borderRadius: 12, marginBottom: 12 }} />}
-      <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 4 }}>{fmt(v.market_price)} ₪</div>
-      <div style={{ marginBottom: 16, fontSize: 12.5 }}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+        <button onClick={onBack} style={{ padding: '6px 10px' }}>חזרה</button>
+        {onToggleCompare && (
+          <button onClick={() => onToggleCompare(v)} className={inCompare ? 'btn-primary' : ''} style={{ padding: '6px 10px' }}>
+            {inCompare ? '✓ בהשוואה' : '+ השווה'}
+          </button>
+        )}
+        <a href={usedSearchUrl(v)} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>
+          <button style={{ padding: '6px 10px' }}>🔍 חיפוש ביד שנייה</button>
+        </a>
+      </div>
+
+      <h2 style={{ marginBottom: 4, marginTop: 0 }}>{v.name}</h2>
+      <div style={{ color: 'var(--color-text-muted)', marginBottom: 10 }}>
+        שנת {v.year}{a.importer ? ' · ' + a.importer : ''}{v.trims > 1 ? ' · ' + v.trims + ' רמות גימור' : ''}
+      </div>
+      <CarImage v={v} height={220} />
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 12, marginBottom: 4, flexWrap: 'wrap' }}>
+        <div style={{ fontSize: 22, fontWeight: 800 }}>{fmt(v.market_price)} ₪</div>
+        <PriceBadge v={v} size={11.5} />
+      </div>
+      {v.estimated && (
+        <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 2 }}>
+          מחירון {v.year}: {fmt(v.list_price)} ₪ · השווי המוצג משוער לפי ירידת ערך מקובלת, בדוק מחיר בפועל ביד שנייה
+        </div>
+      )}
+      {v.priceRange && !v.estimated && (
+        <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 2 }}>
+          לפי רמות גימור: {fmt(v.priceRange[0])} עד {fmt(v.priceRange[1])} ₪
+        </div>
+      )}
+      {lvl && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, marginBottom: 4 }}>
+          <MoneyMeter v={v} profile={profile} withLabel />
+          <span style={{ fontSize: 12, color: 'var(--color-info)' }}>כ {lvl.months} חודשי חיסכון בקצב שלך</span>
+        </div>
+      )}
+      <div style={{ marginBottom: 16, marginTop: 6, fontSize: 12.5 }}>
         <a href={infoUrl} target="_blank" rel="noreferrer">מידע על הדגם ברשת</a>
       </div>
 
       <h3 style={{ marginBottom: 6 }}>עלות חודשית</h3>
 
       {!hasDriver && (
-        <div style={{ background: '#f6f6f6', borderRadius: 10, padding: 12, marginBottom: 12, fontSize: 13 }}>
+        <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, padding: 12, marginBottom: 12, fontSize: 13 }}>
           <div style={{ marginBottom: 8 }}>להערכת ביטוח מכוונת אליך, השלם שנת לידה ושנת הוצאת רישיון</div>
-          <input style={{ width: '48%', padding: 8, marginInlineEnd: '4%', boxSizing: 'border-box' }} placeholder="שנת לידה" inputMode="numeric" value={birth} onChange={e => setBirth(e.target.value)} />
-          <input style={{ width: '48%', padding: 8, boxSizing: 'border-box' }} placeholder="שנת רישיון" inputMode="numeric" value={lic} onChange={e => setLic(e.target.value)} />
+          <input style={{ width: '48%', padding: 8, marginInlineEnd: '4%' }} placeholder="שנת לידה" inputMode="numeric" value={birth} onChange={e => setBirth(e.target.value)} />
+          <input style={{ width: '48%', padding: 8 }} placeholder="שנת רישיון" inputMode="numeric" value={lic} onChange={e => setLic(e.target.value)} />
           <button onClick={saveDriver} disabled={saving} style={{ display: 'block', marginTop: 8, padding: '7px 12px' }}>
             {saving ? 'שומר' : 'שמור בפרופיל'}
           </button>
@@ -131,9 +197,9 @@ function Detail({ v, profile, onBack, onProfileSaved, onStartGoal, compareSel = 
             <div style={{ fontWeight: 600, fontSize: 14 }}>
               {c.label}
               <Tag conf={c.confidence} />
-              {c.edited && <span style={{ fontSize: 11, color: '#666', marginInlineStart: 6 }}>נערך ידנית</span>}
+              {c.edited && <span style={{ fontSize: 11, color: 'var(--color-text-muted)', marginInlineStart: 6 }}>נערך ידנית</span>}
             </div>
-            <div style={{ fontSize: 11.5, color: '#999', marginTop: 2 }}>
+            <div style={{ fontSize: 11.5, color: 'var(--color-text-muted)', marginTop: 2 }}>
               {c.shown == null
                 ? 'לא נכלל בחישוב. הזן סכום ידנית אם תרצה'
                 : c.note + (c.rangeMonthly ? ' · טווח ' + fmt(c.rangeMonthly[0]) + ' עד ' + fmt(c.rangeMonthly[1]) + ' ₪' : '')}
@@ -154,20 +220,61 @@ function Detail({ v, profile, onBack, onProfileSaved, onStartGoal, compareSel = 
         <div>{fmt(total)} ₪</div>
       </div>
       {missing && (
-        <div style={{ fontSize: 12, color: '#b26a00' }}>
+        <div style={{ fontSize: 12, color: 'var(--color-warn)' }}>
           חלק מהעלויות לא נכללו, העלות בפועל תהיה גבוהה יותר.
         </div>
       )}
 
       <button
         onClick={() => onStartGoal(total)}
-        style={{ display: 'block', width: '100%', marginTop: 16, padding: 12, borderRadius: 10, border: 'none', background: '#111', color: '#fff', fontWeight: 700, fontSize: 15, cursor: 'pointer' }}
+        className="btn-primary"
+        style={{ display: 'block', width: '100%', marginTop: 16, padding: 12, borderRadius: 10, fontSize: 15 }}
       >
         בחר רכב זה והתחל לחסוך
       </button>
 
       <div style={{ marginTop: 14, fontSize: 12.5 }}>
         <a href="https://car.cma.gov.il" target="_blank" rel="noreferrer">לבדיקת מחיר ביטוח אמיתי, מחשבון רשות שוק ההון</a>
+      </div>
+    </div>
+  )
+}
+
+function CarCard({ v, profile, onOpen, fav, onToggleFav, inCompare, onToggleCompare }) {
+  const lvl = savingsLevel(v.market_price, profile?.monthly_capacity, profile?.current_savings)
+  return (
+    <div className="car-card">
+      <CarImage v={v} onClick={onOpen} />
+      <div className="car-card-body">
+        <div onClick={onOpen} style={{ cursor: 'pointer' }}>
+          <div style={{ fontWeight: 700, fontSize: 13.5, lineHeight: 1.35, minHeight: 36 }}>{v.name}</div>
+          <div style={{ fontSize: 11.5, color: 'var(--color-text-muted)' }}>שנת {v.year}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
+            <span style={{ fontWeight: 800, fontSize: 14.5, whiteSpace: 'nowrap' }}>{fmt(v.market_price)} ₪</span>
+            <PriceBadge v={v} />
+          </div>
+          {lvl && (
+            <div style={{ marginTop: 4 }}>
+              <MoneyMeter v={v} profile={profile} />
+              <div style={{ fontSize: 10.5, color: 'var(--color-info)', marginTop: 2 }}>
+                כ {lvl.months} חודשי חיסכון בקצב שלך
+              </div>
+            </div>
+          )}
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto', paddingTop: 6 }}>
+          <label style={{ fontSize: 11, color: 'var(--color-text-muted)', whiteSpace: 'nowrap', cursor: 'pointer' }}>
+            <input type="checkbox" checked={inCompare} onChange={onToggleCompare} />
+            {' '}השווה
+          </label>
+          <button
+            onClick={onToggleFav}
+            title="מועדפים"
+            style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 17, color: fav ? 'var(--color-warn)' : 'var(--color-text-muted)', padding: 0 }}
+          >
+            {fav ? '★' : '☆'}
+          </button>
+        </div>
       </div>
     </div>
   )
@@ -192,10 +299,12 @@ export default function Catalog({ profile, onProfileSaved }) {
     if (saved) return saved === 'dark'
     return window.matchMedia('(prefers-color-scheme: dark)').matches
   })
+
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light')
     localStorage.setItem('theme', darkMode ? 'dark' : 'light')
   }, [darkMode])
+
   useEffect(() => {
     localStorage.setItem('cat_query', query)
     localStorage.setItem('cat_yearMin', yearMin)
@@ -203,14 +312,27 @@ export default function Catalog({ profile, onProfileSaved }) {
     localStorage.setItem('cat_favOnly', favOnly)
   }, [query, yearMin, sortBy, favOnly])
 
+  function sortCars(list, sb) {
+    const arr = [...list]
+    if (sb === 'price_desc') arr.sort((x, y) => (y.market_price ?? 0) - (x.market_price ?? 0))
+    else if (sb === 'price_asc') arr.sort((x, y) => (x.market_price ?? 0) - (y.market_price ?? 0))
+    else if (sb === 'm_asc') {
+      const u = { birthYear: profile?.birth_year, licenseYear: profile?.license_year }
+      arr.sort((x, y) =>
+        estimateM(x, u, { includeEstimates: true }).total - estimateM(y, u, { includeEstimates: true }).total
+      )
+    } else arr.sort((x, y) => (y.year ?? 0) - (x.year ?? 0) || (x.market_price ?? 0) - (y.market_price ?? 0))
+    return arr
+  }
+
   async function search(q, ym = yearMin, sb = sortBy, fo = favOnly, favs = favIds) {
     if (fo && (!favs || favs.length === 0)) { setRows([]); return }
     setLoading(true)
     let req = supabase
       .from('products')
-      .select('id, name, year, market_price, addons_once, monthly_cost, attrs')
+      .select(PRODUCT_COLS)
       .eq('kind', 'car')
-      .limit(50)
+      .limit(400)
     if (fo) req = req.in('id', favs)
     if (ym > 0) req = req.gte('year', ym)
     if (q && q.trim()) req = req.ilike('name', `%${q.trim()}%`)
@@ -220,25 +342,26 @@ export default function Catalog({ profile, onProfileSaved }) {
     const { data, error } = await req
     setLoading(false)
     if (error) return
-    let list = data || []
-    if (sb === 'm_asc') {
-      const u = { birthYear: profile?.birth_year, licenseYear: profile?.license_year }
-      list = [...list].sort((x, y) =>
-        estimateM(x, u, { includeEstimates: true }).total - estimateM(y, u, { includeEstimates: true }).total
-      )
-    }
-    setRows(list)
+    setRows(sortCars(normalizeCars(data || []), sb))
   }
 
-  useEffect(() => { search('') }, [])
+  useEffect(() => { search(query) }, [])
 
   async function openGoalCar(id) {
-    const { data } = await supabase
+    const { data: one } = await supabase
       .from('products')
-      .select('id, name, year, market_price, addons_once, monthly_cost, attrs')
+      .select(PRODUCT_COLS)
       .eq('id', id)
       .maybeSingle()
-    if (data) setSelected(data)
+    if (!one) return
+    const { data: grp } = await supabase
+      .from('products')
+      .select(PRODUCT_COLS)
+      .eq('kind', 'car')
+      .eq('name', one.name)
+      .eq('year', one.year)
+    const n = normalizeCars(grp && grp.length ? grp : [one])
+    if (n.length) setSelected(n[0])
   }
 
   async function toggleFav(id) {
@@ -257,17 +380,8 @@ export default function Catalog({ profile, onProfileSaved }) {
     })
   }
 
-  function monthsLabel(v) {
-    const cap = profile?.monthly_capacity
-    if (!(cap > 0)) return null
-    const target = Math.max(0, (v.market_price ?? 0) - (profile?.current_savings ?? 0))
-    const n = Math.ceil(target / cap)
-    return n <= 0 ? 'בהישג יד כבר עכשיו' : 'כ ' + n + ' חודשי חיסכון בקצב שלך'
-  }
-
-  const wrap = { maxWidth: 480, margin: '20px auto', fontFamily: 'sans-serif', direction: 'rtl', padding: 16 }
-  const row = { padding: 12, borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between', gap: 10 }
-  const sel = { flex: 1, padding: 8, fontSize: 13, boxSizing: 'border-box' }
+  const wrap = { maxWidth: 480, margin: '20px auto', direction: 'rtl', padding: 16 }
+  const sel = { flex: 1, padding: 8, fontSize: 13 }
 
   if (showProgress) {
     return <GoalProgress profile={profile} onBack={() => setShowProgress(false)} />
@@ -293,8 +407,8 @@ export default function Catalog({ profile, onProfileSaved }) {
         onBack={() => setSelected(null)}
         onProfileSaved={onProfileSaved}
         onStartGoal={total => setGoalDraft({ v: selected, m: total })}
-          compareSel={compareSel}
-          onToggleCompare={toggleCompare}
+        compareSel={compareSel}
+        onToggleCompare={toggleCompare}
       />
     )
   }
@@ -330,7 +444,7 @@ export default function Catalog({ profile, onProfileSaved }) {
       />
       <button
         onClick={() => setMode('test')}
-        style={{ width: '100%', padding: 12, marginBottom: 12, borderRadius: 10, border: '1px solid #111', background: '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}
+        style={{ width: '100%', padding: 12, marginBottom: 12, borderRadius: 10, border: '1px solid var(--color-primary)', background: 'var(--color-surface)', color: 'var(--color-text)', fontWeight: 700, fontSize: 14 }}
       >
         {profile?.car_prefs ? 'תוצאות ההתאמה שלי' : 'מבחן התאמה, מצא רכב בשבילי'}
       </button>
@@ -360,62 +474,57 @@ export default function Catalog({ profile, onProfileSaved }) {
         </select>
         <button
           onClick={() => { const f = !favOnly; setFavOnly(f); search(query, yearMin, sortBy, f) }}
-          style={{ padding: '6px 10px', fontSize: 12.5, borderRadius: 8, border: '1px solid ' + (favOnly ? '#111' : '#ccc'), background: favOnly ? '#111' : '#fff', color: favOnly ? '#fff' : '#111', cursor: 'pointer', whiteSpace: 'nowrap' }}
+          className={favOnly ? 'btn-primary' : ''}
+          style={{ padding: '6px 10px', fontSize: 12.5, borderRadius: 8, whiteSpace: 'nowrap' }}
         >
           ★ מועדפים
         </button>
-        <button onClick={() => setDarkMode(d => !d)} title="החלפת ערכת נושא" style={{ padding: "6px 12px", background: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: 6, cursor: "pointer", fontSize: 18, color: "var(--color-text)" }}>{darkMode ? "☀️" : "🌙"}</button>
+        <button onClick={() => setDarkMode(d => !d)} title="החלפת ערכת נושא" style={{ padding: '6px 12px', borderRadius: 8, fontSize: 18 }}>
+          {darkMode ? '☀️' : '🌙'}
+        </button>
       </div>
 
       {compareSel.length > 0 && (
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, background: '#f6f6f6', borderRadius: 10, padding: 8 }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, padding: 8 }}>
           <div style={{ fontSize: 12.5, flex: 1 }}>נבחרו {compareSel.length} מתוך 3 להשוואה</div>
-          <button disabled={compareSel.length < 2} onClick={() => setCompareView(true)} style={{ padding: '6px 10px', fontWeight: 700 }}>השוואה</button>
+          <button disabled={compareSel.length < 2} onClick={() => setCompareView(true)} className="btn-primary" style={{ padding: '6px 10px' }}>השוואה</button>
           <button onClick={() => setCompareSel([])} style={{ padding: '6px 10px' }}>ניקוי</button>
         </div>
       )}
 
-      <input
-        style={{ width: '100%', padding: 10, marginBottom: 12, boxSizing: 'border-box', fontSize: 15 }}
-        placeholder="חפש לפי יצרן או דגם, למשל טויוטה"
-        value={query}
-        onChange={e => setQuery(e.target.value)}
-        onKeyDown={e => { if (e.key === 'Enter') search(query) }}
-      />
-      <button onClick={() => search(query)} style={{ padding: '8px 14px', marginBottom: 12 }}>חיפוש</button>
-      {loading && <div style={{ color: '#999' }}>טוען</div>}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+        <input
+          style={{ flex: 1, padding: 10, fontSize: 15 }}
+          placeholder="חפש לפי יצרן או דגם, למשל טויוטה"
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') search(query) }}
+        />
+        <button onClick={() => search(query)} style={{ padding: '8px 14px' }}>חיפוש</button>
+      </div>
+
+      <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 10 }}>
+        המחירים אומתו מול מקורות ישראליים ({PRICES_UPDATED}). רכב משומש מוצג לפי שווי מוערך, רמות גימור אוחדו לכרטיס אחד.
+      </div>
+
+      {loading && <div style={{ color: 'var(--color-text-muted)' }}>טוען</div>}
       {!loading && rows.length === 0 && (
-        <div style={{ color: '#999' }}>{favOnly ? 'אין עדיין מועדפים. סמן כוכב על רכבים שמעניינים אותך' : 'לא נמצאו תוצאות'}</div>
+        <div style={{ color: 'var(--color-text-muted)' }}>{favOnly ? 'אין עדיין מועדפים. סמן כוכב על רכבים שמעניינים אותך' : 'לא נמצאו תוצאות'}</div>
       )}
-      {rows.map(v => (
-        <div key={v.id} style={row}>
-          <div onClick={() => setSelected(v)} style={{ flex: 1, cursor: 'pointer' }}>
-            <div style={{ fontWeight: 700 }}>{v.name}</div>
-            <div style={{ fontSize: 12, color: '#999' }}>שנת {v.year}</div>
-            {monthsLabel(v) && <div style={{ fontSize: 11, color: '#1565c0', marginTop: 2 }}>{monthsLabel(v)}</div>}
-          </div>
-          <div style={{ textAlign: 'left' }}>
-            <div style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>{fmt(v.market_price)} ₪{isPriceSuspect(v) && <span style={{ background: '#ff9800', color: '#fff', borderRadius: 3, padding: '1px 5px', fontSize: 11, marginInlineStart: 4 }}>לא מאומת</span>}</div>
-            <div style={{ display: 'flex', gap: 8, marginTop: 4, justifyContent: 'flex-end', alignItems: 'center' }}>
-              <button
-                onClick={() => toggleFav(v.id)}
-                title="מועדפים"
-                style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 16, color: favIds.includes(v.id) ? '#b26a00' : '#bbb', padding: 0 }}
-              >
-                {favIds.includes(v.id) ? '★' : '☆'}
-              </button>
-              <label style={{ fontSize: 11, color: '#555', whiteSpace: 'nowrap', cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={compareSel.some(x => x.id === v.id)}
-                  onChange={() => toggleCompare(v)}
-                />
-                {' '}השווה
-              </label>
-            </div>
-          </div>
-        </div>
-      ))}
+      <div className="car-grid">
+        {rows.map(v => (
+          <CarCard
+            key={v.name + '|' + v.year}
+            v={v}
+            profile={profile}
+            onOpen={() => setSelected(v)}
+            fav={favIds.includes(v.id)}
+            onToggleFav={() => toggleFav(v.id)}
+            inCompare={compareSel.some(x => x.id === v.id)}
+            onToggleCompare={() => toggleCompare(v)}
+          />
+        ))}
+      </div>
     </div>
   )
 }
