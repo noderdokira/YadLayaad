@@ -207,3 +207,65 @@ a {
 .pigEyeH { opacity: 0; }
 .pig-go .pigEyeO { opacity: 0; }
 .pig-go .pigEyeH { opacity: 1; }
+
+/* שלב ההתרגשות: החזירון מרקד כשקרובים ליעד */
+.pigIdle {
+  transform-box: view-box;
+  transform-origin: 50% 100%;
+  animation: pigIdleBob 1.6s ease-in-out infinite;
+}
+
+@keyframes pigIdleBob {
+  0%, 100% { transform: translateY(0) scale(1, 1); }
+  50% { transform: translateY(-4px) scale(1.015, 0.985); }
+}
+
+/* הפיצוץ בהגעה ליעד */
+.pigBoom {
+  transform-box: view-box;
+  transform-origin: 50% 70%;
+  animation: pigBoom 0.88s ease-in forwards;
+}
+
+@keyframes pigBoom {
+  0% { transform: scale(1) rotate(0deg); opacity: 1; }
+  25% { transform: scale(1.06) rotate(-4deg); }
+  45% { transform: scale(1.12) rotate(4deg); }
+  62% { transform: scale(1.2) rotate(-3deg); opacity: 1; }
+  100% { transform: scale(1.9) rotate(2deg); opacity: 0; }
+}
+
+/* האוצר קופץ פנימה אחרי הפיצוץ */
+.treasurePop {
+  transform-box: view-box;
+  transform-origin: 50% 92%;
+  animation: treasurePop 0.7s cubic-bezier(0.3, 1.5, 0.5, 1) both;
+}
+
+@keyframes treasurePop {
+  0% { transform: scale(0); }
+  60% { transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
+
+/* גם ערמת האוצר מתנדנדת כשמפקידים */
+.pig-go .treasureBody {
+  transform-box: view-box;
+  transform-origin: 50% 100%;
+  animation: pigBounce 0.85s ease both;
+}
+
+/* נצנוץ עדין על האוצר */
+.glint {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: glintTw 2.2s ease-in-out infinite;
+}
+
+.glint.g2 { animation-delay: 0.7s; }
+.glint.g3 { animation-delay: 1.3s; }
+
+@keyframes glintTw {
+  0%, 100% { transform: scale(0.4); opacity: 0.4; }
+  50% { transform: scale(1.15); opacity: 1; }
+}

@@ -212,7 +212,7 @@ export function GoalProgress({ profile, onBack }) {
       <div style={{ color: 'var(--color-text-muted)', marginBottom: 14 }}>{cleanName(g.name)}</div>
 
       <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 6 }}>
-        <PiggyBank ref={pigRef} width={132} />
+        <PiggyBank ref={pigRef} width={132} pct={pct} />
       </div>
 
       <div style={{ position: 'relative', marginBottom: 8 }}>
