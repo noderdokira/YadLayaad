@@ -230,9 +230,9 @@ export const PiggyBank = forwardRef(function PiggyBank({ width = 130, pct = 0 },
       prevDone.current = true
       fromBoom.current = true
       setPhase('boom')
-      goldBurst(inner.current)
-      const t = setTimeout(() => setPhase('treasure'), 880)
-      return () => clearTimeout(t)
+      const b = setTimeout(() => goldBurst(inner.current), 930)
+      const t = setTimeout(() => setPhase('treasure'), 1120)
+      return () => { clearTimeout(b); clearTimeout(t) }
     }
     if (!done && prevDone.current) {
       prevDone.current = false

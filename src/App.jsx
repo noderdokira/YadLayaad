@@ -5,6 +5,7 @@ import Auth from './Auth'
 import Survey from './Survey'
 import Catalog from './Catalog'
 import ProfileEdit from './ProfileEdit'
+import SavingsHelp from './SavingsHelp'
 
 export default function App() {
   const [session, setSession] = useState(null)
@@ -12,6 +13,7 @@ export default function App() {
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
   const [retaking, setRetaking] = useState(false)
+  const [showSavings, setShowSavings] = useState(false)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session))
@@ -40,6 +42,9 @@ export default function App() {
   if (loading) return <div style={wrap}>טוען</div>
   if (!profile || profile.sigma == null) {
     return <Survey userId={session.user.id} onDone={() => loadProfile(session.user.id)} />
+  }
+  if (showSavings) {
+    return <SavingsHelp profile={profile} onBack={() => setShowSavings(false)} />
   }
   if (retaking) {
     return (
@@ -70,6 +75,7 @@ export default function App() {
           יד ליעד 🚗
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={() => setShowSavings(true)} className="btn-primary" style={{ padding: '6px 10px' }}>💡 חיסכון</button>
           <button onClick={() => setEditing(true)} style={{ padding: '6px 10px' }}>עריכת פרופיל</button>
           <button onClick={() => supabase.auth.signOut()} style={{ padding: '6px 10px' }}>התנתקות</button>
         </div>
