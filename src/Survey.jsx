@@ -41,7 +41,23 @@ export default function Survey({ userId, profile = null, onDone, onCancel }) {
     setTimeout(() => setStep(s => s + 1), 150)
   }
 
+  function checkInputs() {
+    const now = new Date().getFullYear()
+    const by = birthYear === '' ? null : Number(birthYear)
+    const ly = licenseYear === '' ? null : Number(licenseYear)
+    const money = [['הכנסה', income], ['חיסכון', savings], ['הפרשה חודשית', monthly]]
+    for (const [label, v] of money) {
+      if (v !== '' && (!Number.isFinite(Number(v)) || Number(v) < 0)) return 'בשדה ' + label + ' יש להזין מספר חיובי'
+    }
+    if (by != null && (!Number.isInteger(by) || by < 1920 || by > now)) return 'שנת לידה לא סבירה'
+    if (ly != null && (!Number.isInteger(ly) || ly < 1935 || ly > now)) return 'שנת רישיון לא סבירה'
+    if (by != null && ly != null && ly - by < 16) return 'שנת הרישיון מוקדמת מדי ביחס לשנת הלידה'
+    return ''
+  }
+
   async function finish() {
+    const problem = checkInputs()
+    if (problem) { setErr(problem); return }
     setSaving(true); setErr('')
     const sig = []
     let style = profile?.motivation_style || 'automation'

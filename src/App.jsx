@@ -1,11 +1,12 @@
 // src/App.jsx
 import { useEffect, useState } from 'react'
 import { supabase } from './lib/supabase'
-import Auth from './Auth'
+import Auth, { UpdatePassword } from './Auth'
 import Survey from './Survey'
 import Catalog from './Catalog'
 import ProfileEdit from './ProfileEdit'
 import SavingsHelp from './SavingsHelp'
+import InstallPrompt from './InstallPrompt'
 
 export default function App() {
   const [session, setSession] = useState(null)
@@ -14,10 +15,15 @@ export default function App() {
   const [editing, setEditing] = useState(false)
   const [retaking, setRetaking] = useState(false)
   const [showSavings, setShowSavings] = useState(false)
+  const [recovery, setRecovery] = useState(false)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session))
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSession(s))
+    const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
+      setSession(s)
+      // כניסה דרך קישור איפוס סיסמה מהמייל
+      if (event === 'PASSWORD_RECOVERY') setRecovery(true)
+    })
     return () => sub.subscription.unsubscribe()
   }, [])
 
@@ -38,7 +44,8 @@ export default function App() {
 
   const wrap = { maxWidth: 480, margin: '20px auto', direction: 'rtl', padding: 16 }
 
-  if (!session) return <Auth />
+  if (!session) return <><Auth /><InstallPrompt /></>
+  if (recovery) return <UpdatePassword onDone={() => setRecovery(false)} />
   if (loading) return <div style={wrap}>טוען</div>
   if (!profile || profile.sigma == null) {
     return <Survey userId={session.user.id} onDone={() => loadProfile(session.user.id)} />
@@ -70,17 +77,18 @@ export default function App() {
 
   return (
     <div>
-      <div style={{ ...wrap, marginBottom: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ ...wrap, marginBottom: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
         <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--color-primary)' }}>
           יד ליעד 🚗
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button onClick={() => setShowSavings(true)} className="btn-primary" style={{ padding: '6px 10px' }}>💡 חיסכון</button>
           <button onClick={() => setEditing(true)} style={{ padding: '6px 10px' }}>עריכת פרופיל</button>
           <button onClick={() => supabase.auth.signOut()} style={{ padding: '6px 10px' }}>התנתקות</button>
         </div>
       </div>
       <Catalog profile={profile} onProfileSaved={() => loadProfile(session.user.id)} />
+      <InstallPrompt />
     </div>
   )
 }

@@ -7,6 +7,12 @@
 //    בכניסה חוזרת לדף כשהיעד כבר הושלם מוצג האוצר בלבד, בלי פיצוץ.
 import { forwardRef, useEffect, useRef, useState } from 'react'
 
+// משתמשים שביקשו פחות אנימציות במערכת ההפעלה מקבלים חוויה שקטה
+const reducedMotion = () =>
+  typeof window !== 'undefined' &&
+  window.matchMedia &&
+  window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
 // ---------- ציור החזירון, ההבעה משתנה לפי אחוז ההתקדמות ----------
 
 const SMILES = [
@@ -138,7 +144,7 @@ const sparklePiece = s => '<svg width="' + s * 2 + '" height="' + s * 2 + '" vie
   + '<path d="M0,-9 L1.8,-1.8 L9,0 L1.8,1.8 L0,9 L-1.8,1.8 L-9,0 L-1.8,-1.8 Z" fill="#fff"/></svg>'
 
 function goldBurst(svgEl) {
-  if (!svgEl) return
+  if (!svgEl || reducedMotion()) return
   try {
     const r = svgEl.getBoundingClientRect()
     const x0 = r.left + r.width / 2
@@ -228,6 +234,11 @@ export const PiggyBank = forwardRef(function PiggyBank({ width = 130, pct = 0 },
   useEffect(() => {
     if (done && !prevDone.current) {
       prevDone.current = true
+      if (reducedMotion()) {
+        fromBoom.current = false
+        setPhase('treasure')
+        return
+      }
       fromBoom.current = true
       setPhase('boom')
       const b = setTimeout(() => goldBurst(inner.current), 930)
@@ -302,7 +313,7 @@ function arcFrames(x1, y1, x2, y2, n) {
 let liveOverlay = null
 
 export function flyCoin({ fromEl, pigEl, amount }) {
-  if (!pigEl || typeof document === 'undefined') return
+  if (!pigEl || typeof document === 'undefined' || reducedMotion()) return
   try {
     if (liveOverlay) { liveOverlay.remove(); liveOverlay = null }
 

@@ -289,3 +289,16 @@ a {
   0%, 100% { transform: scale(1) rotate(-4deg); }
   50% { transform: scale(1.22) rotate(7deg); }
 }
+
+/* משתמשים שביקשו פחות תנועה במערכת: מכבים את אנימציות הקישוט */
+@media (prefers-reduced-motion: reduce) {
+  .pigIdle,
+  .pigBoom,
+  .treasurePop,
+  .glint,
+  .starEye,
+  .pig-go .pigBody,
+  .pig-go .treasureBody {
+    animation: none !important;
+  }
+}

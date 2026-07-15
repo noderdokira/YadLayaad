@@ -6,6 +6,7 @@ import { fetchCarImage } from './lib/carImage'
 import { normalizeCars, priceTag, usedSearchUrl, savingsLevel, PRICES_UPDATED } from './lib/priceBook'
 import MatchTest from './MatchTest'
 import Compare from './Compare'
+import CarCheck from './CarCheck'
 import { GoalBanner, GoalSetup, GoalProgress } from './Goal'
 
 const fmt = n => (n == null || n === '' ? 'אין נתון' : Number(n).toLocaleString('he-IL'))
@@ -129,9 +130,12 @@ function Detail({ v, profile, onBack, onProfileSaved, onStartGoal, compareSel = 
             {inCompare ? '✓ בהשוואה' : '+ השווה'}
           </button>
         )}
-        <a href={usedSearchUrl(v)} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>
-          <button style={{ padding: '6px 10px' }}>🔍 חיפוש ביד שנייה</button>
-        </a>
+        <button
+          onClick={() => window.open(usedSearchUrl(v), '_blank', 'noopener')}
+          style={{ padding: '6px 10px' }}
+        >
+          🔍 חיפוש ביד שנייה
+        </button>
       </div>
 
       <h2 style={{ marginBottom: 4, marginTop: 0 }}>{v.name}</h2>
@@ -160,8 +164,9 @@ function Detail({ v, profile, onBack, onProfileSaved, onStartGoal, compareSel = 
           <span style={{ fontSize: 12, color: 'var(--color-info)' }}>כ {lvl.months} חודשי חיסכון בקצב שלך</span>
         </div>
       )}
-      <div style={{ marginBottom: 16, marginTop: 6, fontSize: 12.5 }}>
+      <div style={{ marginBottom: 16, marginTop: 6, fontSize: 12.5, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
         <a href={infoUrl} target="_blank" rel="noreferrer">מידע על הדגם ברשת</a>
+        <a href="https://www.yad2.co.il/price-list" target="_blank" rel="noreferrer">מחירון יד2 למחירי שוק</a>
       </div>
 
       <h3 style={{ marginBottom: 6 }}>עלות חודשית</h3>
@@ -284,6 +289,8 @@ export default function Catalog({ profile, onProfileSaved }) {
   const [query, setQuery] = useState(() => localStorage.getItem('cat_query') || '')
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(false)
+  const [loadErr, setLoadErr] = useState('')
+  const [carCheck, setCarCheck] = useState(false)
   const [selected, setSelected] = useState(null)
   const [mode, setMode] = useState('list')
   const [goalDraft, setGoalDraft] = useState(null)
@@ -328,6 +335,7 @@ export default function Catalog({ profile, onProfileSaved }) {
   async function search(q, ym = yearMin, sb = sortBy, fo = favOnly, favs = favIds) {
     if (fo && (!favs || favs.length === 0)) { setRows([]); return }
     setLoading(true)
+    setLoadErr('')
     let req = supabase
       .from('products')
       .select(PRODUCT_COLS)
@@ -341,7 +349,7 @@ export default function Catalog({ profile, onProfileSaved }) {
     else req = req.order('market_price', { ascending: true })
     const { data, error } = await req
     setLoading(false)
-    if (error) return
+    if (error) { setLoadErr('שגיאה בטעינת הקטלוג: ' + error.message); return }
     setRows(sortCars(normalizeCars(data || []), sb))
   }
 
@@ -385,6 +393,15 @@ export default function Catalog({ profile, onProfileSaved }) {
 
   if (showProgress) {
     return <GoalProgress profile={profile} onBack={() => setShowProgress(false)} />
+  }
+
+  if (carCheck) {
+    return (
+      <CarCheck
+        onBack={() => setCarCheck(false)}
+        onPick={v => { setCarCheck(false); setSelected(v) }}
+      />
+    )
   }
 
   if (goalDraft) {
@@ -444,9 +461,15 @@ export default function Catalog({ profile, onProfileSaved }) {
       />
       <button
         onClick={() => setMode('test')}
-        style={{ width: '100%', padding: 12, marginBottom: 12, borderRadius: 10, border: '1px solid var(--color-primary)', background: 'var(--color-surface)', color: 'var(--color-text)', fontWeight: 700, fontSize: 14 }}
+        style={{ width: '100%', padding: 12, marginBottom: 8, borderRadius: 10, border: '1px solid var(--color-primary)', background: 'var(--color-surface)', color: 'var(--color-text)', fontWeight: 700, fontSize: 14 }}
       >
         {profile?.car_prefs ? 'תוצאות ההתאמה שלי' : 'מבחן התאמה, מצא רכב בשבילי'}
+      </button>
+      <button
+        onClick={() => setCarCheck(true)}
+        style={{ width: '100%', padding: 12, marginBottom: 12, borderRadius: 10, border: '1px solid var(--color-info)', background: 'var(--color-surface)', color: 'var(--color-text)', fontWeight: 700, fontSize: 14 }}
+      >
+        🔎 בדיקת רכב לפי מספר רישוי, לפני שקונים יד שנייה
       </button>
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
@@ -508,6 +531,11 @@ export default function Catalog({ profile, onProfileSaved }) {
       </div>
 
       {loading && <div style={{ color: 'var(--color-text-muted)' }}>טוען</div>}
+      {loadErr && (
+        <div style={{ color: 'var(--color-danger)', fontSize: 13, marginBottom: 10 }}>
+          {loadErr} <button onClick={() => search(query)} style={{ padding: '3px 8px', fontSize: 12 }}>נסה שוב</button>
+        </div>
+      )}
       {!loading && rows.length === 0 && (
         <div style={{ color: 'var(--color-text-muted)' }}>{favOnly ? 'אין עדיין מועדפים. סמן כוכב על רכבים שמעניינים אותך' : 'לא נמצאו תוצאות'}</div>
       )}

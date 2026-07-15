@@ -165,9 +165,10 @@ export function GoalProgress({ profile, onBack }) {
   const sum = deposits.reduce((s, d) => s + Number(d.amount), 0)
   const target = g.target ?? 0
   const remaining = Math.max(0, target - sum)
-  const pct = target > 0 ? Math.min(100, Math.round((100 * sum) / target)) : 100
-  const monthsLeft = g.monthly_saving > 0 ? Math.ceil(remaining / g.monthly_saving) : null
   const done = target > 0 && remaining === 0
+  // עד שהיעד באמת הושלם לא מציגים 100%, כדי שהחגיגה לא תוקדם בגלל עיגול
+  const pct = done || target <= 0 ? 100 : Math.min(99, Math.floor((100 * sum) / target))
+  const monthsLeft = g.monthly_saving > 0 ? Math.ceil(remaining / g.monthly_saving) : null
 
   let etaTxt = ''
   if (!done && monthsLeft != null) {
