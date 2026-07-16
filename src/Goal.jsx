@@ -134,6 +134,7 @@ export function GoalProgress({ profile, onBack, asTab = false }) {
   const pigRef = useRef(null)
   const amountRef = useRef(null)
   const [deposits, setDeposits] = useState([])
+  const [loaded, setLoaded] = useState(false)
   const [amount, setAmount] = useState('')
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
@@ -146,9 +147,11 @@ export function GoalProgress({ profile, onBack, asTab = false }) {
     const { data, error } = await req
     if (error) {
       setErr(error.message.includes('goal_deposits') ? 'נראה שקטע ה SQL של ההפקדות עוד לא הורץ בסופבייס' : error.message)
+      setLoaded(true)
       return
     }
     setDeposits(data || [])
+    setLoaded(true)
   }
 
   useEffect(() => { load() }, [])
@@ -233,8 +236,8 @@ export function GoalProgress({ profile, onBack, asTab = false }) {
       <div className="page-title" style={{ marginBottom: 2 }}>מעקב חיסכון</div>
       <div style={{ color: 'var(--color-text-muted)', marginBottom: 14 }}>{cleanName(g.name)}</div>
 
-      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 6 }}>
-        <PiggyBank ref={pigRef} width={132} pct={journeyPct} />
+      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 6, minHeight: 120 }}>
+        {loaded && <PiggyBank ref={pigRef} width={132} pct={journeyPct} />}
       </div>
 
       <div style={{ position: 'relative', marginBottom: 8 }}>
