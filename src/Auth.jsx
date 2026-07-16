@@ -38,8 +38,8 @@ export default function Auth() {
   }
 
   return (
-    <div style={{ maxWidth: 320, margin: '80px auto', fontFamily: 'sans-serif', direction: 'rtl' }}>
-      <h2>יד ליעד</h2>
+    <div className="page-wrap page-wrap--narrow" style={{ marginTop: 64, maxWidth: 340 }}>
+      <h2 className="wordmark" style={{ fontSize: 30, marginTop: 0, marginBottom: 14 }}>יד ליעד 🚗</h2>
       <input
         placeholder="אימייל"
         type="email"
@@ -92,8 +92,8 @@ export function UpdatePassword({ onDone }) {
   }
 
   return (
-    <div style={{ maxWidth: 320, margin: '80px auto', direction: 'rtl', padding: 16 }}>
-      <h2>סיסמה חדשה</h2>
+    <div className="page-wrap page-wrap--narrow" style={{ marginTop: 64, maxWidth: 340 }}>
+      <h2 className="page-title" style={{ marginTop: 0 }}>סיסמה חדשה</h2>
       <div style={{ fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 12 }}>
         נכנסת דרך קישור האיפוס. בחר סיסמה חדשה לחשבון.
       </div>

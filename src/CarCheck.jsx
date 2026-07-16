@@ -5,10 +5,9 @@
 import { useState } from 'react'
 import { supabase } from './lib/supabase'
 import { normalizePlate, fetchByPlate, fetchModelSpec } from './lib/govCar'
-import { normalizeCars, cleanName } from './lib/priceBook'
+import { normalizeCars, cleanName, priceListSearchUrl } from './lib/priceBook'
 
 const fmt = n => (n == null || n === '' ? 'אין נתון' : Number(n).toLocaleString('he-IL'))
-const wrap = { maxWidth: 480, margin: '20px auto', direction: 'rtl', padding: 16 }
 
 const KIND_COLORS = {
   ok: 'var(--color-primary)',
@@ -114,9 +113,9 @@ export default function CarCheck({ onBack, onPick }) {
     : '#'
 
   return (
-    <div style={wrap}>
+    <div className="page-wrap page-wrap--mid">
       <button onClick={onBack} style={{ marginBottom: 14, padding: '6px 10px' }}>חזרה</button>
-      <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>🔎 בדיקת רכב לפי מספר רישוי</div>
+      <div className="page-title" style={{ marginBottom: 4 }}>🔎 בדיקת רכב לפי מספר רישוי</div>
       <div style={{ fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 14, lineHeight: 1.5 }}>
         מצאת מודעה ביד שנייה? הזן את מספר הרישוי וקבל את נתוני האמת מהמאגר הרשמי של משרד התחבורה:
         שנתון, דגם, סוג בעלות וטסט. חינם וללא הגבלה.
@@ -201,7 +200,7 @@ export default function CarCheck({ onBack, onPick }) {
 
           <div style={{ display: 'flex', gap: 10, marginTop: 12, fontSize: 12.5, flexWrap: 'wrap' }}>
             <a href={adsUrl} target="_blank" rel="noreferrer">מודעות לדגם הזה</a>
-            <a href="https://www.yad2.co.il/price-list" target="_blank" rel="noreferrer">מחירון יד2</a>
+            <a href={priceListSearchUrl((rec.kinuy_mishari || ''), rec.shnat_yitzur)} target="_blank" rel="noreferrer">מחיר שוק במחירון יד2</a>
           </div>
 
           <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 12, lineHeight: 1.5 }}>

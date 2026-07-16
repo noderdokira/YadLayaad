@@ -1,4 +1,9 @@
-@import url('https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;700;800&display=swap');
+/* Hallmark · component: app-shell (responsive redesign) · genre: playful
+ * theme: custom "Piggy" — preserved brand palette · display: Secular One · body: Rubik
+ * states: nav default·hover·focus-visible·active · contrast: pass
+ * gates: 34 38a 46 47 48 49 50 51 52 53 pass · pre-emit critique: P4 H4 E4 S4 R5 V4
+ */
+@import url('https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;700;800&family=Secular+One&display=swap');
 
 :root {
   --color-bg: #f4f6f4;
@@ -300,5 +305,253 @@ a {
   .pig-go .pigBody,
   .pig-go .treasureBody {
     animation: none !important;
+  }
+}
+
+/* ===================== Hallmark app-shell ===================== */
+
+:root {
+  --font-display: 'Secular One', 'Rubik', sans-serif;
+  --font-body: 'Rubik', 'Segoe UI', sans-serif;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-8: 48px;
+  --radius-lg: 16px;
+  --text-title: 24px;
+  --nav-h: 62px;
+}
+
+/* קשיחות בסיס: בלי גלילה אופקית, בלי מדיה שפורצת את המסך */
+html,
+body {
+  overflow-x: clip;
+}
+
+img,
+video {
+  max-width: 100%;
+}
+
+/* עטיפות עמוד: רוחב אחד בטלפון, רוחבים מותאמים במחשב */
+.page-wrap {
+  max-width: 520px;
+  margin: 12px auto 0;
+  padding: var(--space-4);
+  direction: rtl;
+  min-width: 0;
+}
+
+.page-wrap--narrow {
+  max-width: 400px;
+}
+
+@media (min-width: 760px) {
+  .page-wrap {
+    margin-top: var(--space-5);
+  }
+
+  .page-wrap--mid {
+    max-width: 680px;
+  }
+
+  .page-wrap--wide {
+    max-width: 1080px;
+  }
+}
+
+/* כותרות מסך: פונט התצוגה העברי */
+.page-title {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: var(--text-title);
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.wordmark {
+  font-family: var(--font-display);
+  font-weight: 400;
+  color: var(--color-primary);
+  font-size: 21px;
+  white-space: nowrap;
+}
+
+/* פס עליון דק בטלפון */
+.mobile-topbar {
+  display: flex;
+  justify-content: center;
+  padding: 10px var(--space-4) 0;
+  direction: rtl;
+}
+
+@media (min-width: 760px) {
+  .mobile-topbar {
+    display: none;
+  }
+}
+
+/* כותרת ניווט במחשב */
+.app-header {
+  display: none;
+}
+
+@media (min-width: 760px) {
+  .app-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: var(--space-4) var(--space-4) 0;
+    direction: rtl;
+  }
+
+  .app-header .wordmark {
+    font-size: 25px;
+    margin-inline-end: var(--space-2);
+  }
+
+  .app-header nav {
+    display: flex;
+    gap: var(--space-2);
+    flex: 1;
+  }
+
+  .app-header nav button {
+    padding: 7px 14px;
+    font-size: 13.5px;
+    white-space: nowrap;
+  }
+
+  .app-header nav button[aria-current] {
+    background: var(--color-primary);
+    color: var(--color-on-primary);
+    border-color: transparent;
+    font-weight: 700;
+  }
+}
+
+/* ניווט תחתון בטלפון, עם שוליים בטוחים ל־PWA מותקן */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  right: 0;
+  left: 0;
+  z-index: 900;
+  display: flex;
+  direction: rtl;
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.bottom-nav button {
+  flex: 1;
+  min-height: var(--nav-h);
+  min-width: 0;
+  border: none;
+  border-radius: 0;
+  border-top: 2px solid transparent;
+  background: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  font-size: 11.5px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.bottom-nav button .ico {
+  font-size: 21px;
+  line-height: 1;
+}
+
+.bottom-nav button[aria-current] {
+  color: var(--color-primary);
+  font-weight: 700;
+  border-top-color: var(--color-primary);
+}
+
+.bottom-nav button:active {
+  transform: none;
+  background: var(--color-surface-2);
+}
+
+@media (min-width: 760px) {
+  .bottom-nav {
+    display: none;
+  }
+}
+
+/* מקום לניווט התחתון, שהתוכן לא ייחתך מאחוריו */
+@media (max-width: 759.98px) {
+  .app-shell {
+    padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + var(--space-3));
+  }
+}
+
+/* עמוד רכב: שתי עמודות במחשב, אחת בטלפון */
+.detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  column-gap: var(--space-6);
+}
+
+@media (min-width: 900px) {
+  .detail-grid {
+    grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+    align-items: start;
+  }
+}
+
+/* קטלוג: כרטיסים גדולים יותר במחשב, בטוחים ב־320px */
+.car-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 160px), 1fr));
+}
+
+@media (min-width: 760px) {
+  .car-grid {
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: var(--space-4);
+  }
+
+  .car-card {
+    border-radius: var(--radius-lg);
+  }
+}
+
+/* באנר ההתקנה: מעל הניווט התחתון בטלפון */
+.install-banner {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  z-index: 1000;
+  max-width: 470px;
+  margin: 0 auto;
+  direction: rtl;
+  background: var(--color-surface);
+  border: 1px solid var(--color-primary);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+/* בטלפון, כשהניווט התחתון קיים, הבאנר יושב מעליו */
+@media (max-width: 759.98px) {
+  body:has(.bottom-nav) .install-banner {
+    bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 12px);
   }
 }

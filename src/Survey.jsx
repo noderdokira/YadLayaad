@@ -84,7 +84,6 @@ export default function Survey({ userId, profile = null, onDone, onCancel }) {
     onDone()
   }
 
-  const wrap = { maxWidth: 360, margin: '60px auto', direction: 'rtl', padding: 16 }
   const optBtn = {
     display: 'block', width: '100%', padding: 12, marginBottom: 8, textAlign: 'right',
     borderRadius: 10, border: '1px solid var(--color-border)',
@@ -100,7 +99,7 @@ export default function Survey({ userId, profile = null, onDone, onCancel }) {
 
   if (isSurvey) {
     return (
-      <div style={wrap}>
+      <div className="page-wrap page-wrap--narrow" style={{ marginTop: 40 }}>
         {cancelLink}
         <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 6 }}>
           שאלה {step + 1} מתוך {SURVEY.length}
@@ -114,9 +113,9 @@ export default function Survey({ userId, profile = null, onDone, onCancel }) {
   }
 
   return (
-    <div style={wrap}>
+    <div className="page-wrap page-wrap--narrow" style={{ marginTop: 40 }}>
       {cancelLink}
-      <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>הנתונים הכספיים שלך</div>
+      <div className="page-title" style={{ marginBottom: 4 }}>הנתונים הכספיים שלך</div>
       <div style={{ fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 16 }}>
         כדי לחשב כמה כל יעד באמת דורש ממך, ולהעריך ביטוח שמכוון אליך
       </div>

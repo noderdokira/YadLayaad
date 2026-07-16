@@ -46,13 +46,7 @@ export default function InstallPrompt() {
   }
 
   return (
-    <div style={{
-      position: 'fixed', bottom: 12, left: 12, right: 12, zIndex: 1000,
-      maxWidth: 470, margin: '0 auto', direction: 'rtl',
-      background: 'var(--color-surface)', border: '1px solid var(--color-primary)',
-      borderRadius: 12, boxShadow: 'var(--shadow)', padding: '10px 12px',
-      display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, lineHeight: 1.45,
-    }}>
+    <div className="install-banner">
       <span style={{ fontSize: 22 }} aria-hidden="true">📲</span>
       <div style={{ flex: 1 }}>
         {deferred

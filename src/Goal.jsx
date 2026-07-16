@@ -5,7 +5,6 @@ import { cleanName } from './lib/priceBook'
 import { PiggyBank, flyCoin } from './DepositFx'
 
 const fmt = n => (n == null || n === '' ? 'אין נתון' : Number(n).toLocaleString('he-IL'))
-const wrap = { maxWidth: 480, margin: '20px auto', direction: 'rtl', padding: 16 }
 
 function Line({ label, val, strong }) {
   return (
@@ -57,9 +56,9 @@ export function GoalSetup({ v, m, profile, onBack, onDone }) {
   }
 
   return (
-    <div style={wrap}>
+    <div className="page-wrap">
       <button onClick={onBack} style={{ marginBottom: 14, padding: '6px 10px' }}>חזרה</button>
-      <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>התחלת חיסכון ליעד</div>
+      <div className="page-title" style={{ marginBottom: 4 }}>התחלת חיסכון ליעד</div>
       <div style={{ color: 'var(--color-text-muted)', marginBottom: 14 }}>{v.name} · שנת {v.year}</div>
 
       <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, padding: 12, marginBottom: 14, fontSize: 14 }}>
@@ -130,7 +129,7 @@ export function GoalBanner({ profile, onOpenCar, onOpenProgress, onProfileSaved 
   )
 }
 
-export function GoalProgress({ profile, onBack }) {
+export function GoalProgress({ profile, onBack, asTab = false }) {
   const g = profile?.goal
   const pigRef = useRef(null)
   const amountRef = useRef(null)
@@ -156,9 +155,15 @@ export function GoalProgress({ profile, onBack }) {
 
   if (!g) {
     return (
-      <div style={wrap}>
-        <button onClick={onBack} style={{ marginBottom: 14, padding: '6px 10px' }}>חזרה</button>
-        <div>אין יעד פעיל</div>
+      <div className="page-wrap">
+        {!asTab && <button onClick={onBack} style={{ marginBottom: 14, padding: '6px 10px' }}>חזרה</button>}
+        <div className="page-title" style={{ marginBottom: 6 }}>עוד אין יעד 🐷</div>
+        <div style={{ fontSize: 13.5, color: 'var(--color-text-muted)', lineHeight: 1.6, marginBottom: 14 }}>
+          בוחרים רכב בקטלוג, קובעים כמה מפרישים בחודש, והחזירון מתחיל לעבוד בשבילך.
+        </div>
+        <button onClick={onBack} className="btn-primary" style={{ padding: '10px 18px', borderRadius: 10 }}>
+          לקטלוג הרכבים 🚗
+        </button>
       </div>
     )
   }
@@ -223,9 +228,9 @@ export function GoalProgress({ profile, onBack }) {
   }
 
   return (
-    <div style={wrap}>
-      <button onClick={onBack} style={{ marginBottom: 14, padding: '6px 10px' }}>חזרה</button>
-      <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 2 }}>מעקב חיסכון</div>
+    <div className="page-wrap">
+      {!asTab && <button onClick={onBack} style={{ marginBottom: 14, padding: '6px 10px' }}>חזרה</button>}
+      <div className="page-title" style={{ marginBottom: 2 }}>מעקב חיסכון</div>
       <div style={{ color: 'var(--color-text-muted)', marginBottom: 14 }}>{cleanName(g.name)}</div>
 
       <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 6 }}>

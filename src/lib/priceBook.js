@@ -252,6 +252,13 @@ export function usedSearchUrl(v) {
   return 'https://www.google.com/search?q=' + encodeURIComponent(q.trim())
 }
 
+// מחיר שוק לדגם הספציפי: חיפוש שמוביל לעמוד המחירון של הדגם ביד2.
+// קישור ישיר לעמוד הבית של המחירון נפתח באפליקציית יד2 בלי הדגם, ולכן החיפוש עדיף.
+export function priceListSearchUrl(name, year) {
+  const q = 'מחירון יד2 ' + (name || '') + ' ' + (year || '')
+  return 'https://www.google.com/search?q=' + encodeURIComponent(q.trim())
+}
+
 // ---------- 6. מד רמת חיסכון: כמה קשה יהיה לחסוך לרכב ----------
 // 1 = קל מאוד ... 5 = קשה מאוד, לפי מספר חודשי החיסכון בקצב של המשתמש.
 

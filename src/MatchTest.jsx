@@ -87,23 +87,22 @@ export default function MatchTest({ profile, onPick, onBack }) {
 
   function redo() { setResults(null); setAnswers({}); setStep(0); setErr(''); setCustomVal('') }
 
-  const wrap = { maxWidth: 480, margin: '20px auto', direction: 'rtl', padding: 16 }
   const optBtn = {
     display: 'block', width: '100%', padding: 12, marginBottom: 8, textAlign: 'right',
     borderRadius: 10, border: '1px solid var(--color-border)',
     background: 'var(--color-surface)', color: 'var(--color-text)', fontSize: 15, cursor: 'pointer',
   }
 
-  if (busy) return <div style={wrap}>מחשב התאמות</div>
+  if (busy) return <div className="page-wrap">מחשב התאמות</div>
 
   if (results) {
     return (
-      <div style={wrap}>
+      <div className="page-wrap">
         <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
           <button onClick={onBack} style={{ padding: '6px 10px' }}>חזרה לקטלוג</button>
           <button onClick={redo} style={{ padding: '6px 10px' }}>מילוי מחדש</button>
         </div>
-        <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 10 }}>הרכבים שהכי מתאימים לך</div>
+        <div className="page-title" style={{ marginBottom: 10 }}>הרכבים שהכי מתאימים לך</div>
         {results.length === 0 && <div style={{ color: 'var(--color-text-muted)' }}>לא נמצאו רכבים מתאימים לתנאים האלה</div>}
         {results.map(r => (
           <div key={r.v.id} onClick={() => onPick(r.v)}
@@ -128,7 +127,7 @@ export default function MatchTest({ profile, onPick, onBack }) {
 
   const cur = QUESTIONS[step]
   return (
-    <div style={wrap}>
+    <div className="page-wrap">
       <button onClick={onBack} style={{ marginBottom: 14, padding: '6px 10px' }}>חזרה לקטלוג</button>
       <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 6 }}>שאלה {step + 1} מתוך {QUESTIONS.length}</div>
       <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 16 }}>{cur.q}</div>

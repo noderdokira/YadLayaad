@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { supabase } from './lib/supabase'
 
-export default function ProfileEdit({ profile, userId, onDone, onCancel, onRetakeSurvey }) {
+export default function ProfileEdit({ profile, userId, onDone, onCancel, onRetakeSurvey, onSignOut }) {
   const [license, setLicense] = useState(profile?.license ?? '')
   const [birthYear, setBirthYear] = useState(profile?.birth_year ?? '')
   const [licenseYear, setLicenseYear] = useState(profile?.license_year ?? '')
@@ -33,12 +33,11 @@ export default function ProfileEdit({ profile, userId, onDone, onCancel, onRetak
     onDone()
   }
 
-  const wrap = { maxWidth: 360, margin: '60px auto', direction: 'rtl', padding: 16 }
   const input = { display: 'block', width: '100%', padding: 10, marginBottom: 10 }
 
   return (
-    <div style={wrap}>
-      <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>עריכת פרופיל</div>
+    <div className="page-wrap page-wrap--narrow" style={{ marginTop: 40 }}>
+      <div className="page-title" style={{ marginBottom: 4 }}>עריכת פרופיל</div>
       <div style={{ fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 16 }}>
         הנתונים משפיעים על הערכת הביטוח בכל רכב
       </div>
@@ -62,6 +61,12 @@ export default function ProfileEdit({ profile, userId, onDone, onCancel, onRetak
             מילוי השאלון מחדש
           </button>
         </div>
+      )}
+
+      {onSignOut && (
+        <button onClick={onSignOut} style={{ width: '100%', marginTop: 14, padding: 11, borderRadius: 10 }}>
+          התנתקות מהחשבון
+        </button>
       )}
 
       {err && <p style={{ color: 'var(--color-danger)', marginTop: 10 }}>{err}</p>}

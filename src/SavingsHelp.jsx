@@ -6,7 +6,6 @@ import { useMemo, useState } from 'react'
 import { SAVINGS, PLAN_MIX, RATE_ANCHOR } from './lib/savingsData'
 
 const fmt = n => Number(n || 0).toLocaleString('he-IL')
-const wrap = { maxWidth: 520, margin: '20px auto', direction: 'rtl', padding: 16 }
 
 const BAND_LABEL = { low: 'נמוכה', mid: 'בינונית', high: 'גבוהה' }
 const HBAND_LABEL = { short: 'קצר (עד שנה)', mid: 'בינוני (שנה עד 3)', long: 'ארוך (3 עד 5 שנים)' }
@@ -172,9 +171,9 @@ export default function SavingsHelp({ profile, onBack }) {
   const mix = PLAN_MIX[band][hband]
 
   return (
-    <div style={wrap}>
+    <div className="page-wrap page-wrap--mid">
       <button onClick={onBack} style={{ marginBottom: 14, padding: '6px 10px' }}>חזרה</button>
-      <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 2 }}>עזרה בחיסכון 💡</div>
+      <div className="page-title" style={{ marginBottom: 2 }}>עזרה בחיסכון 💡</div>
       <div style={{ fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 12 }}>
         מסלול חיסכון מותאם אישית לפי הפרופיל שלך
       </div>

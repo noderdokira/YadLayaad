@@ -312,8 +312,28 @@ function arcFrames(x1, y1, x2, y2, n) {
 
 let liveOverlay = null
 
+// משוב עדין למצב תנועה מופחתת: טקסט הסכום מופיע ונעלם, בלי מעוף ובלי פיצוצים.
+// ככה גם טלפון עם "הסרת אנימציות" או חיסכון בסוללה מקבל אישור חזותי להפקדה.
+function gentlePlus({ pigEl, amount }) {
+  try {
+    const p = pigEl.getBoundingClientRect()
+    const el = document.createElement('div')
+    el.textContent = '+' + Number(amount || 0).toLocaleString('he-IL') + ' ₪'
+    el.style.cssText = 'position:fixed;pointer-events:none;z-index:9999;left:' + (p.left + p.width / 2) + 'px;top:' + (p.top - 6) + 'px;'
+      + 'transform:translateX(-50%);font-weight:700;font-size:20px;color:#43a047;opacity:0;'
+      + 'text-shadow:0 0 8px var(--color-bg),0 0 3px var(--color-bg);white-space:nowrap'
+    document.body.appendChild(el)
+    el.animate(
+      [{ opacity: 0 }, { opacity: 1, offset: 0.15 }, { opacity: 1, offset: 0.8 }, { opacity: 0 }],
+      { duration: 1100, easing: 'ease-out', fill: 'both' }
+    )
+    setTimeout(() => el.remove(), 1300)
+  } catch { /* קישוט בלבד */ }
+}
+
 export function flyCoin({ fromEl, pigEl, amount }) {
-  if (!pigEl || typeof document === 'undefined' || reducedMotion()) return
+  if (!pigEl || typeof document === 'undefined') return
+  if (reducedMotion()) { gentlePlus({ pigEl, amount }); return }
   try {
     if (liveOverlay) { liveOverlay.remove(); liveOverlay = null }
 

@@ -3,7 +3,6 @@ import { estimateM } from './lib/costModel'
 import { savingsLevel } from './lib/priceBook'
 
 const fmt = n => (n == null || n === '' ? 'אין נתון' : Number(n).toLocaleString('he-IL'))
-const wrap = { maxWidth: 480, margin: '20px auto', direction: 'rtl', padding: 16 }
 
 export default function Compare({ cars, profile, onBack, onPick }) {
   const user = { birthYear: profile?.birth_year, licenseYear: profile?.license_year }
@@ -34,9 +33,9 @@ export default function Compare({ cars, profile, onBack, onPick }) {
   const head = { ...cell, fontWeight: 700, fontSize: 12 }
 
   return (
-    <div style={wrap}>
+    <div className="page-wrap page-wrap--wide">
       <button onClick={onBack} style={{ marginBottom: 14, padding: '6px 10px' }}>חזרה לקטלוג</button>
-      <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 10 }}>השוואת רכבים</div>
+      <div className="page-title" style={{ marginBottom: 10 }}>השוואת רכבים</div>
       {cols.length < 2 && <div style={{ color: 'var(--color-text-muted)' }}>בחר לפחות שני רכבים להשוואה</div>}
       {cols.length >= 2 && (
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>

@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from './lib/supabase'
 import { estimateM } from './lib/costModel'
 import { fetchCarImage } from './lib/carImage'
-import { normalizeCars, priceTag, usedSearchUrl, savingsLevel, PRICES_UPDATED } from './lib/priceBook'
+import { normalizeCars, priceTag, usedSearchUrl, priceListSearchUrl, savingsLevel, PRICES_UPDATED } from './lib/priceBook'
 import MatchTest from './MatchTest'
 import Compare from './Compare'
 import CarCheck from './CarCheck'
@@ -117,12 +117,11 @@ function Detail({ v, profile, onBack, onProfileSaved, onStartGoal, compareSel = 
   }
 
   const a = v.attrs || {}
-  const wrap = { maxWidth: 480, margin: '20px auto', direction: 'rtl', padding: 16 }
   const rowSt = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--color-border)', gap: 10 }
   const inCompare = compareSel.some(x => x.id === v.id)
 
   return (
-    <div style={wrap}>
+    <div className="page-wrap page-wrap--wide">
       <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
         <button onClick={onBack} style={{ padding: '6px 10px' }}>חזרה</button>
         {onToggleCompare && (
@@ -138,10 +137,12 @@ function Detail({ v, profile, onBack, onProfileSaved, onStartGoal, compareSel = 
         </button>
       </div>
 
-      <h2 style={{ marginBottom: 4, marginTop: 0 }}>{v.name}</h2>
+      <h2 className="page-title" style={{ marginBottom: 4, marginTop: 0 }}>{v.name}</h2>
       <div style={{ color: 'var(--color-text-muted)', marginBottom: 10 }}>
         שנת {v.year}{a.importer ? ' · ' + a.importer : ''}{v.trims > 1 ? ' · ' + v.trims + ' רמות גימור' : ''}
       </div>
+      <div className="detail-grid">
+      <div>
       <CarImage v={v} height={220} />
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 12, marginBottom: 4, flexWrap: 'wrap' }}>
@@ -166,10 +167,12 @@ function Detail({ v, profile, onBack, onProfileSaved, onStartGoal, compareSel = 
       )}
       <div style={{ marginBottom: 16, marginTop: 6, fontSize: 12.5, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
         <a href={infoUrl} target="_blank" rel="noreferrer">מידע על הדגם ברשת</a>
-        <a href="https://www.yad2.co.il/price-list" target="_blank" rel="noreferrer">מחירון יד2 למחירי שוק</a>
+        <a href={priceListSearchUrl(v.name, v.year)} target="_blank" rel="noreferrer">מחיר שוק לדגם במחירון יד2</a>
+      </div>
       </div>
 
-      <h3 style={{ marginBottom: 6 }}>עלות חודשית</h3>
+      <div>
+      <h3 style={{ marginTop: 0, marginBottom: 6 }}>עלות חודשית</h3>
 
       {!hasDriver && (
         <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, padding: 12, marginBottom: 12, fontSize: 13 }}>
@@ -240,6 +243,8 @@ function Detail({ v, profile, onBack, onProfileSaved, onStartGoal, compareSel = 
 
       <div style={{ marginTop: 14, fontSize: 12.5 }}>
         <a href="https://car.cma.gov.il" target="_blank" rel="noreferrer">לבדיקת מחיר ביטוח אמיתי, מחשבון רשות שוק ההון</a>
+      </div>
+      </div>
       </div>
     </div>
   )
@@ -392,7 +397,6 @@ export default function Catalog({ profile, onProfileSaved }) {
     })
   }
 
-  const wrap = { maxWidth: 480, margin: '20px auto', direction: 'rtl', padding: 16 }
   const sel = { flex: 1, padding: 8, fontSize: 13 }
 
   if (showProgress) {
@@ -456,7 +460,7 @@ export default function Catalog({ profile, onProfileSaved }) {
   }
 
   return (
-    <div style={wrap}>
+    <div className="page-wrap page-wrap--wide">
       <GoalBanner
         profile={profile}
         onOpenCar={openGoalCar}
