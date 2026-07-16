@@ -12,8 +12,13 @@ export default function Auth() {
 
   async function signUp() {
     setLoading(true); setMsg('')
-    const { error } = await supabase.auth.signUp({ email, password })
-    setMsg(error ? error.message : 'נרשמת. בדוק את המייל לאישור אם נדרש.')
+    const { data, error } = await supabase.auth.signUp({ email, password })
+    if (error) setMsg(error.message)
+    // כשהאימייל כבר רשום, סופבייס מחזיר משתמש בלי זהויות במקום שגיאה
+    else if (data?.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+      setMsg('האימייל הזה כבר רשום. נסה להתחבר, או לחץ על שכחתי סיסמה.')
+    }
+    else setMsg('נרשמת! אם נדרש אישור, שלחנו מייל עם קישור.')
     setLoading(false)
   }
 

@@ -310,6 +310,10 @@ export default function Catalog({ profile, onProfileSaved }) {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light')
     localStorage.setItem('theme', darkMode ? 'dark' : 'light')
+    // צבע שורת הסטטוס בטלפון עוקב אחרי ערכת הנושא שנבחרה בתוך האפליקציה
+    document.querySelectorAll('meta[name="theme-color"]').forEach(m =>
+      m.setAttribute('content', darkMode ? '#1f1e1d' : '#f4f6f4')
+    )
   }, [darkMode])
 
   useEffect(() => {

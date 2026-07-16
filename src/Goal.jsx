@@ -139,6 +139,7 @@ export function GoalProgress({ profile, onBack }) {
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
+  const [extra, setExtra] = useState(0)
 
   async function load() {
     let req = supabase.from('goal_deposits').select('id, amount, note, created_at').order('created_at', { ascending: false })
@@ -169,6 +170,21 @@ export function GoalProgress({ profile, onBack }) {
   // עד שהיעד באמת הושלם לא מציגים 100%, כדי שהחגיגה לא תוקדם בגלל עיגול
   const pct = done || target <= 0 ? 100 : Math.min(99, Math.floor((100 * sum) / target))
   const monthsLeft = g.monthly_saving > 0 ? Math.ceil(remaining / g.monthly_saving) : null
+
+  // התקדמות מוענקת: מה שכבר היה לך בהתחלה נספר כחלק מהדרך אל מחיר הרכב המלא.
+  // מחקר Nunes & Dreze 2006: התחלה עם התקדמות קיימת מגבירה התמדה משמעותית.
+  const price = g.price ?? 0
+  const saved0 = Math.max(0, price - target)
+  const journeyExact = price > 0 ? (100 * (saved0 + sum)) / price : (done ? 100 : 0)
+  const journeyPct = done ? 100 : Math.min(99, Math.floor(journeyExact))
+
+  // רצף הפקדות: חודשים עוקבים עם לפחות הפקדה אחת.
+  // החודש הנוכחי לא שובר את הרצף אם עוד לא הפקדת בו.
+  const mKey = d => { const x = new Date(d); return x.getFullYear() * 12 + x.getMonth() }
+  const monthsWithDeposit = new Set(deposits.map(d => mKey(d.created_at)))
+  const nowKey = mKey(new Date())
+  let streak = 0
+  for (let k = monthsWithDeposit.has(nowKey) ? nowKey : nowKey - 1; monthsWithDeposit.has(k); k--) streak++
 
   let etaTxt = ''
   if (!done && monthsLeft != null) {
@@ -213,7 +229,7 @@ export function GoalProgress({ profile, onBack }) {
       <div style={{ color: 'var(--color-text-muted)', marginBottom: 14 }}>{cleanName(g.name)}</div>
 
       <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 6 }}>
-        <PiggyBank ref={pigRef} width={132} pct={pct} />
+        <PiggyBank ref={pigRef} width={132} pct={journeyPct} />
       </div>
 
       <div style={{ position: 'relative', marginBottom: 8 }}>
@@ -224,10 +240,15 @@ export function GoalProgress({ profile, onBack }) {
           <div key={m} style={{ position: 'absolute', left: `${m}%`, top: 0, width: 2, height: 16, background: 'var(--color-bg)', opacity: 0.8, transform: 'translateX(-1px)', pointerEvents: 'none' }} />
         ))}
       </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: saved0 > 0 ? 2 : 12 }}>
         <div>{fmt(sum)} ₪ מתוך {fmt(target)} ₪</div>
         <div style={{ fontWeight: 800 }}>{pct}%</div>
       </div>
+      {saved0 > 0 && (
+        <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 12 }}>
+          יחד עם {fmt(saved0)} ₪ שכבר היו לך בהתחלה, עברת {journeyPct}% מהדרך למחיר הרכב המלא 🚗
+        </div>
+      )}
 
       {done ? (
         <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--color-primary)', animation: 'goalPop 0.5s ease', marginBottom: 14 }}>
@@ -238,7 +259,38 @@ export function GoalProgress({ profile, onBack }) {
           נשארו {fmt(remaining)} ₪{monthsLeft != null ? ', בקצב שלך עוד כ ' + monthsLeft + ' חודשים, בסביבות ' + etaTxt : ''}
         </div>
       )}
+      {streak >= 2 && !done && (
+        <div style={{ fontSize: 12.5, color: 'var(--color-warn)', fontWeight: 700, marginBottom: 8 }}>
+          🔥 {streak} חודשים של הפקדות ברצף{style === 'gamification' ? '. אל תשבור אותו!' : ''}
+        </div>
+      )}
       {flavor && <div style={{ fontSize: 12.5, color: 'var(--color-info)', marginBottom: 14 }}>{flavor}</div>}
+
+      {!done && g.monthly_saving > 0 && remaining > 0 && (
+        <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, padding: 12, marginBottom: 14 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>מה אם תגדיל את הקצב?</div>
+          <input
+            type="range" min="0" max="1000" step="50" value={extra}
+            onChange={e => setExtra(Number(e.target.value))}
+            style={{ width: '100%', direction: 'ltr', accentColor: 'var(--color-primary)' }}
+            aria-label="תוספת חודשית להפקדה"
+          />
+          {extra > 0 ? (
+            <div style={{ fontSize: 12.5, marginTop: 6 }}>
+              עוד <b>{fmt(extra)} ₪</b> בחודש: מגיעים ליעד בעוד כ {Math.ceil(remaining / (g.monthly_saving + extra))} חודשים
+              {monthsLeft != null && Math.ceil(remaining / (g.monthly_saving + extra)) < monthsLeft && (
+                <span style={{ color: 'var(--color-primary)', fontWeight: 700 }}>
+                  {' '}— {monthsLeft - Math.ceil(remaining / (g.monthly_saving + extra))} חודשים מוקדם יותר
+                </span>
+              )}
+            </div>
+          ) : (
+            <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 6 }}>
+              גרור את הסליידר כדי לראות כמה מוקדם תוכל להגיע ליעד
+            </div>
+          )}
+        </div>
+      )}
 
       <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, padding: 12, marginBottom: 14 }}>
         <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>הפקדה חדשה</div>

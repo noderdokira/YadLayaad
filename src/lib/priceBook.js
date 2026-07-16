@@ -15,7 +15,8 @@
 import { isPriceSuspect } from './costModel'
 
 export const PRICES_UPDATED = 'יולי 2026'
-const CURRENT_YEAR = 2026
+// לא פחות מ 2026 (חותמת ספר המחירים), ומתקדם אוטומטית כשהשנה מתחלפת
+const CURRENT_YEAR = Math.max(2026, new Date().getFullYear())
 
 // ---------- 1. ניקוי שם הדגם מארץ הייצור ----------
 
@@ -125,6 +126,23 @@ const PRICE_BOOK = [
   { b: "אם ג'י", m: /^ZS/, base: 156550 },
 ]
 
+// ---------- זיהוי רכב חשמלי ----------
+// מותגים שכל הדגמים שלהם חשמליים, ודגמים חשמליים מובהקים מספר המחירים.
+// זיהוי שמרני: עדיף לפספס חשמלי מלסמן בטעות רכב בנזין כחשמלי.
+const EV_BRANDS = ['ביואיד', 'בי ווי די', 'BYD', 'ליפמוטור', 'טסלה', 'אורה', 'איון', 'דיפאל']
+const EV_MODELS = [/^T03/, /^MG\s?4/, /^DOLPHIN/, /^ATTO/, /^BOX$/, /^BOX\s/, /\bEV\b/]
+
+export function isElectric(clean, attrs) {
+  try {
+    const a = JSON.stringify(attrs || {})
+    if (a.includes('חשמל')) return true
+    if (/"fuel"\s*:\s*"?elect/i.test(a)) return true
+  } catch { /* לא קריטי */ }
+  if (EV_BRANDS.some(b => clean.includes(b))) return true
+  const latin = latinPart(clean)
+  return EV_MODELS.some(rx => rx.test(latin))
+}
+
 function latinPart(clean) {
   const m = clean.match(/[A-Za-z0-9][A-Za-z0-9 .\-]*$/)
   return (m ? m[0] : '').trim().toUpperCase()
@@ -203,6 +221,7 @@ export function normalizeCars(rows) {
       id: rep.id,
       name: clean,
       year,
+      isEv: isElectric(clean, rep.attrs),
       market_price: suspect ? listPrice : valueNow,
       list_price: listPrice,
       addons_once: rep.addons_once,

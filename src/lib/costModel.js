@@ -34,6 +34,11 @@ export const ANCHORS = {
 
   defaultKmPerYear: 15000,
   defaultConsumption: 7.0, // ליטר ל 100 קמ עד שיש נתון פר דגם
+
+  // חשמל ביתי: 64.32 אגורות לקוט"ש כולל מע"מ, תעריף יולי 2026 (רשות החשמל).
+  // טעינה ציבורית מהירה יקרה משמעותית; ההערכה כאן היא לטעינה ביתית.
+  electricityPricePerKwh: 0.64,
+  defaultEvConsumption: 15, // קוט"ש ל 100 קמ, ממוצע לרכב חשמלי קטן
 }
 
 const round = (x) => Math.round(x)
@@ -51,9 +56,20 @@ export function agraMonthly(price) {
   }
 }
 
-// דלק, מחושב. בלי צריכה פר דגם משתמשים בברירת מחדל מסומנת.
-export function fuelMonthly({ kmPerYear, consumption } = {}) {
+// דלק או חשמל, מחושב. בלי צריכה פר דגם משתמשים בברירת מחדל מסומנת.
+export function fuelMonthly({ kmPerYear, consumption, isEv } = {}) {
   const km = kmPerYear ?? ANCHORS.defaultKmPerYear
+  if (isEv) {
+    const kwh = consumption ?? ANCHORS.defaultEvConsumption
+    const monthly = (km / 12) * (kwh / 100) * ANCHORS.electricityPricePerKwh
+    return {
+      key: 'fuel',
+      label: 'חשמל (טעינה ביתית)',
+      confidence: 'default',
+      monthly: round(monthly),
+      note: 'לפי כ 15 קוט"ש ל 100 קמ ותעריף ביתי של 64 אגורות. טעינה ציבורית יקרה יותר, ערוך לפי השימוש שלך',
+    }
+  }
   const cons = consumption ?? null
   const used = cons ?? ANCHORS.defaultConsumption
   const monthly = (km / 12) * (used / 100) * ANCHORS.fuelPricePerLiter
@@ -108,7 +124,7 @@ export function maintenanceMonthly() {
 export function estimateM(vehicle, user = {}, opts = { includeEstimates: true }) {
   const solid = [
     agraMonthly(vehicle.market_price ?? 0),
-    fuelMonthly({ kmPerYear: user.kmPerYear, consumption: vehicle.consumption }),
+    fuelMonthly({ kmPerYear: user.kmPerYear, consumption: vehicle.consumption, isEv: vehicle.isEv }),
   ]
   const estimates = [
     insuranceMonthly({
@@ -133,12 +149,13 @@ export function isPriceSuspect(v) {
   const price = v.market_price ?? 0
   const year  = v.year ?? 2000
   if (price <= 0) return false
-  const age   = 2026 - year
+  // שנה נוכחית אמיתית, כדי שהסף לא יקפא כשהשנה מתחלפת
+  const age   = Math.max(0, new Date().getFullYear() - year)
   // סף: 25,000 + 6,000 לכל שנת גיל. מתחת לסף → חשוד
   return price < 25000 + age * 6000
 }
 
 // הערה לרכבים ישנים (לפני 2010): מחיר מקורי בלבד
 export function isOriginalListPrice(v) {
-  return (v.year ?? 2026) < 2010
+  return (v.year ?? new Date().getFullYear()) < 2010
 }

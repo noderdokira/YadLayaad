@@ -23,7 +23,7 @@ export default function Compare({ cars, profile, onBack, onPick }) {
     { label: 'שנה', get: c => c.v.year },
     { label: 'עלות חודשית משוערת', get: c => fmt(c.m.total) + ' ₪', strong: true },
     { label: 'אגרה ורדיו', get: c => fmt(c.byKey.agra) + ' ₪' },
-    { label: 'דלק', get: c => fmt(c.byKey.fuel) + ' ₪' },
+    { label: 'דלק / חשמל', get: c => fmt(c.byKey.fuel) + ' ₪' },
     { label: 'ביטוח, הערכה', get: c => fmt(c.byKey.insurance) + ' ₪' },
     { label: 'טיפולים, הערכה', get: c => fmt(c.byKey.maintenance) + ' ₪' },
     { label: 'חודשי חיסכון בקצב שלך', get: c => (c.lvl ? 'כ ' + c.lvl.months : 'אין נתון'), strong: true },
