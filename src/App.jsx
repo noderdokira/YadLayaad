@@ -10,6 +10,7 @@ import ProfileEdit from './ProfileEdit'
 import SavingsHelp from './SavingsHelp'
 import InstallPrompt from './InstallPrompt'
 import { GoalProgress } from './Goal'
+import League from './League'
 
 const NAV = [
   { id: 'catalog', ico: '🚗', label: 'קטלוג' },
@@ -101,7 +102,9 @@ export default function App() {
   if (screen === 'savings') {
     content = <SavingsHelp profile={profile} onBack={goCatalog} />
   } else if (screen === 'goal') {
-    content = <GoalProgress profile={profile} onBack={goCatalog} asTab />
+    content = <GoalProgress profile={profile} onBack={goCatalog} asTab onOpenLeague={() => setScreen('league')} />
+  } else if (screen === 'league') {
+    content = <League profile={profile} onBack={() => setScreen('goal')} />
   } else if (screen === 'profile') {
     content = (
       <ProfileEdit
@@ -142,7 +145,11 @@ export default function App() {
       {/* ניווט תחתון בטלפון */}
       <nav className="bottom-nav" aria-label="ניווט ראשי">
         {NAV.map(n => (
-          <button key={n.id} aria-current={screen === n.id || undefined} onClick={() => setScreen(n.id)}>
+          <button
+            key={n.id}
+            aria-current={screen === n.id || (n.id === 'goal' && screen === 'league') || undefined}
+            onClick={() => setScreen(n.id)}
+          >
             <span className="ico" aria-hidden="true">{n.ico}</span>
             {n.label}
           </button>

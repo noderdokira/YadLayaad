@@ -1,6 +1,7 @@
 // src/ProfileEdit.jsx
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from './lib/supabase'
+import { pushSupported, pushStatus, enablePush, disablePush } from './lib/push'
 
 export default function ProfileEdit({ profile, userId, onDone, onCancel, onRetakeSurvey, onSignOut }) {
   const [license, setLicense] = useState(profile?.license ?? '')
@@ -17,6 +18,24 @@ export default function ProfileEdit({ profile, userId, onDone, onCancel, onRetak
     if (ly != null && (!Number.isInteger(ly) || ly < 1935 || ly > now)) return 'שנת רישיון לא סבירה'
     if (by != null && ly != null && ly - by < 16) return 'שנת הרישיון מוקדמת מדי ביחס לשנת הלידה'
     return ''
+  }
+
+  const [pushOn, setPushOn] = useState(false)
+  const [pushBusy, setPushBusy] = useState(false)
+  const [pushErr, setPushErr] = useState('')
+
+  useEffect(() => { pushStatus().then(setPushOn) }, [])
+
+  async function togglePush(on) {
+    setPushBusy(true); setPushErr('')
+    try {
+      if (on) await enablePush()
+      else await disablePush()
+      setPushOn(on)
+    } catch (e) {
+      setPushErr(e.message || 'שגיאה בהגדרת ההתראות')
+    }
+    setPushBusy(false)
   }
 
   const [forceMotion, setForceMotion] = useState(() => {
@@ -74,7 +93,17 @@ export default function ProfileEdit({ profile, userId, onDone, onCancel, onRetak
         </div>
       )}
 
-      <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginTop: 16, fontSize: 13, lineHeight: 1.5, cursor: 'pointer' }}>
+      {pushSupported() && (
+        <div style={{ marginTop: 16 }}>
+          <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 13, lineHeight: 1.5, cursor: 'pointer' }}>
+            <input type="checkbox" checked={pushOn} disabled={pushBusy} onChange={e => togglePush(e.target.checked)} style={{ marginTop: 2 }} />
+            <span>🔔 תזכורת חודשית בהתראה לטלפון או למחשב, אם עוד לא הפקדת החודש</span>
+          </label>
+          {pushErr && <div style={{ fontSize: 12, color: 'var(--color-danger)', marginTop: 4 }}>{pushErr}</div>}
+        </div>
+      )}
+
+      <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginTop: 10, fontSize: 13, lineHeight: 1.5, cursor: 'pointer' }}>
         <input type="checkbox" checked={forceMotion} onChange={e => toggleMotion(e.target.checked)} style={{ marginTop: 2 }} />
         <span>
           אנימציות תמיד פעילות (חזירון, מטבעות ופיצוץ), גם כשהמחשב או הטלפון מוגדרים על "פחות תנועה"

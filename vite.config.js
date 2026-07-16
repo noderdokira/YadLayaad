@@ -28,6 +28,7 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,ico}'],
+        importScripts: ['push-sw.js'],
         runtimeCaching: [
           {
             // תמונות הרכבים מוויקיפדיה: מטמון חזק, חוסך רשת ועובד גם בלי אינטרנט

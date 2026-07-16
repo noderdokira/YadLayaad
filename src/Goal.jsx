@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { supabase } from './lib/supabase'
 import { cleanName } from './lib/priceBook'
 import { PiggyBank, flyCoin } from './DepositFx'
+import SavingsChart from './SavingsChart'
 
 const fmt = n => (n == null || n === '' ? 'אין נתון' : Number(n).toLocaleString('he-IL'))
 
@@ -144,7 +145,7 @@ function calReminderUrl() {
     + '&recur=' + encodeURIComponent('RRULE:FREQ=MONTHLY;BYMONTHDAY=2')
 }
 
-export function GoalProgress({ profile, onBack, asTab = false }) {
+export function GoalProgress({ profile, onBack, asTab = false, onOpenLeague }) {
   const g = profile?.goal
   const pigRef = useRef(null)
   const amountRef = useRef(null)
@@ -179,9 +180,14 @@ export function GoalProgress({ profile, onBack, asTab = false }) {
         <div style={{ fontSize: 13.5, color: 'var(--color-text-muted)', lineHeight: 1.6, marginBottom: 14 }}>
           בוחרים רכב בקטלוג, קובעים כמה מפרישים בחודש, והחזירון מתחיל לעבוד בשבילך.
         </div>
-        <button onClick={onBack} className="btn-primary" style={{ padding: '10px 18px', borderRadius: 10 }}>
-          לקטלוג הרכבים 🚗
-        </button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button onClick={onBack} className="btn-primary" style={{ padding: '10px 18px', borderRadius: 10 }}>
+            לקטלוג הרכבים 🚗
+          </button>
+          {onOpenLeague && (
+            <button onClick={onOpenLeague} style={{ padding: '10px 18px', borderRadius: 10 }}>🏆 ליגת חברים</button>
+          )}
+        </div>
       </div>
     )
   }
@@ -249,7 +255,12 @@ export function GoalProgress({ profile, onBack, asTab = false }) {
   return (
     <div className="page-wrap">
       {!asTab && <button onClick={onBack} style={{ marginBottom: 14, padding: '6px 10px' }}>חזרה</button>}
-      <div className="page-title" style={{ marginBottom: 2 }}>מעקב חיסכון</div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', marginBottom: 2 }}>
+        <div className="page-title">מעקב חיסכון</div>
+        {onOpenLeague && (
+          <button onClick={onOpenLeague} style={{ padding: '5px 11px', fontSize: 12.5 }}>🏆 ליגת חברים</button>
+        )}
+      </div>
       <div style={{ color: 'var(--color-text-muted)', marginBottom: 14 }}>{cleanName(g.name)}</div>
 
       <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 6, minHeight: 120 }}>
@@ -283,6 +294,10 @@ export function GoalProgress({ profile, onBack, asTab = false }) {
           נשארו {fmt(remaining)} ₪{monthsLeft != null ? ', בקצב שלך עוד כ ' + monthsLeft + ' חודשים, בסביבות ' + etaTxt : ''}
         </div>
       )}
+      {loaded && deposits.length > 0 && (
+        <SavingsChart deposits={deposits} saved0={saved0} price={price} startedAt={g.started_at} />
+      )}
+
       {loaded && !done && !thisMonthDeposit && (
         <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-warn)', borderRadius: 10, padding: 10, marginBottom: 12, fontSize: 12.5, lineHeight: 1.55, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <span style={{ flex: 1, minWidth: 180 }}>🔔 עוד לא הפקדת החודש. שמירה על הרצף שווה יותר מגובה הסכום.</span>
