@@ -130,7 +130,7 @@ const PRICE_BOOK = [
 // מותגים שכל הדגמים שלהם חשמליים, ודגמים חשמליים מובהקים מספר המחירים.
 // זיהוי שמרני: עדיף לפספס חשמלי מלסמן בטעות רכב בנזין כחשמלי.
 const EV_BRANDS = ['ביואיד', 'בי ווי די', 'BYD', 'ליפמוטור', 'טסלה', 'אורה', 'איון', 'דיפאל']
-const EV_MODELS = [/^T03/, /^MG\s?4/, /^DOLPHIN/, /^ATTO/, /^BOX$/, /^BOX\s/, /\bEV\b/]
+const EV_MODELS = [/^T03/, /^MG\s?4/, /^DOLPHIN/, /^ATTO/, /^BOX$/, /^BOX\s/, /^IC5/, /^IEV/, /\bEV\b/]
 
 export function isElectric(clean, attrs) {
   try {
