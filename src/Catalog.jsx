@@ -73,7 +73,7 @@ function CarImage({ v, onClick, height = null }) {
   return <div className="car-card-imgless" onClick={onClick}>🚗</div>
 }
 
-function Detail({ v, profile, onBack, onProfileSaved, onStartGoal, compareSel = [], onToggleCompare }) {
+function Detail({ v, profile, onBack, onProfileSaved, onStartGoal, compareSel = [], onToggleCompare, demo = false }) {
   const [includeEst, setIncludeEst] = useState(true)
   const [edits, setEdits] = useState({})
   const [birth, setBirth] = useState('')
@@ -174,7 +174,7 @@ function Detail({ v, profile, onBack, onProfileSaved, onStartGoal, compareSel = 
       <div>
       <h3 style={{ marginTop: 0, marginBottom: 6 }}>עלות חודשית</h3>
 
-      {!hasDriver && (
+      {!hasDriver && !demo && (
         <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, padding: 12, marginBottom: 12, fontSize: 13 }}>
           <div style={{ marginBottom: 8 }}>להערכת ביטוח מכוונת אליך, השלם שנת לידה ושנת הוצאת רישיון</div>
           <input style={{ width: '48%', padding: 8, marginInlineEnd: '4%' }} placeholder="שנת לידה" inputMode="numeric" value={birth} onChange={e => setBirth(e.target.value)} />
@@ -290,7 +290,7 @@ function CarCard({ v, profile, onOpen, fav, onToggleFav, inCompare, onToggleComp
   )
 }
 
-export default function Catalog({ profile, onProfileSaved }) {
+export default function Catalog({ profile, onProfileSaved, demo = false, onRequestAuth }) {
   const [query, setQuery] = useState(() => localStorage.getItem('cat_query') || '')
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(false)
@@ -382,6 +382,7 @@ export default function Catalog({ profile, onProfileSaved }) {
   }
 
   async function toggleFav(id) {
+    if (demo) { onRequestAuth?.(); return }
     const prev = favIds
     const next = prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
     setFavIds(next)
@@ -431,7 +432,8 @@ export default function Catalog({ profile, onProfileSaved }) {
         profile={profile}
         onBack={() => setSelected(null)}
         onProfileSaved={onProfileSaved}
-        onStartGoal={total => setGoalDraft({ v: selected, m: total })}
+        onStartGoal={total => { if (demo) { onRequestAuth?.(); return } setGoalDraft({ v: selected, m: total }) }}
+        demo={demo}
         compareSel={compareSel}
         onToggleCompare={toggleCompare}
       />
@@ -442,6 +444,7 @@ export default function Catalog({ profile, onProfileSaved }) {
     return (
       <MatchTest
         profile={profile}
+        demo={demo}
         onBack={() => setMode('list')}
         onPick={v => { setMode('list'); setSelected(v) }}
       />

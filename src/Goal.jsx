@@ -129,6 +129,21 @@ export function GoalBanner({ profile, onOpenCar, onOpenProgress, onProfileSaved 
   )
 }
 
+// קישור ליצירת תזכורת חודשית ביומן גוגל, ליום השני בכל חודש (אחרי משכורת)
+function calReminderUrl() {
+  const d = new Date()
+  if (d.getDate() > 2) d.setMonth(d.getMonth() + 1)
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const start = y + m + '02'
+  const end = y + m + '03'
+  return 'https://calendar.google.com/calendar/render?action=TEMPLATE'
+    + '&text=' + encodeURIComponent('הפקדה לחיסכון לרכב 🚗')
+    + '&details=' + encodeURIComponent('הרגע הכי טוב לחסוך: יום אחרי המשכורת. פותחים את יד ליעד ומפקידים.')
+    + '&dates=' + start + '/' + end
+    + '&recur=' + encodeURIComponent('RRULE:FREQ=MONTHLY;BYMONTHDAY=2')
+}
+
 export function GoalProgress({ profile, onBack, asTab = false }) {
   const g = profile?.goal
   const pigRef = useRef(null)
@@ -193,6 +208,7 @@ export function GoalProgress({ profile, onBack, asTab = false }) {
   const nowKey = mKey(new Date())
   let streak = 0
   for (let k = monthsWithDeposit.has(nowKey) ? nowKey : nowKey - 1; monthsWithDeposit.has(k); k--) streak++
+  const thisMonthDeposit = monthsWithDeposit.has(nowKey)
 
   let etaTxt = ''
   if (!done && monthsLeft != null) {
@@ -265,6 +281,14 @@ export function GoalProgress({ profile, onBack, asTab = false }) {
       ) : (
         <div style={{ fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 4 }}>
           נשארו {fmt(remaining)} ₪{monthsLeft != null ? ', בקצב שלך עוד כ ' + monthsLeft + ' חודשים, בסביבות ' + etaTxt : ''}
+        </div>
+      )}
+      {loaded && !done && !thisMonthDeposit && (
+        <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-warn)', borderRadius: 10, padding: 10, marginBottom: 12, fontSize: 12.5, lineHeight: 1.55, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <span style={{ flex: 1, minWidth: 180 }}>🔔 עוד לא הפקדת החודש. שמירה על הרצף שווה יותר מגובה הסכום.</span>
+          <a href={calReminderUrl()} target="_blank" rel="noreferrer" style={{ whiteSpace: 'nowrap', fontSize: 12 }}>
+            קבע תזכורת חודשית ביומן
+          </a>
         </div>
       )}
       {streak >= 2 && !done && (

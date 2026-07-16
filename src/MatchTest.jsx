@@ -23,7 +23,7 @@ const QUESTIONS = [
     opts: [['תוך שנה', 12], ['תוך שנתיים', 24], ['שלוש שנים ומעלה', 40]] },
 ]
 
-export default function MatchTest({ profile, onPick, onBack }) {
+export default function MatchTest({ profile, onPick, onBack, demo = false }) {
   const [step, setStep] = useState(0)
   const [answers, setAnswers] = useState({})
   const [customVal, setCustomVal] = useState('')
@@ -74,7 +74,7 @@ export default function MatchTest({ profile, onPick, onBack }) {
     setAnswers(a)
     setCustomVal(''); setErr('')
     if (step + 1 < QUESTIONS.length) setTimeout(() => setStep(s => s + 1), 120)
-    else runMatch(a, true)
+    else runMatch(a, !demo && !!profile)
   }
 
   function pickCustom() {

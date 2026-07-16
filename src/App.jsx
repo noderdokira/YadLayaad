@@ -25,6 +25,7 @@ export default function App() {
   const [screen, setScreen] = useState('catalog')
   const [retaking, setRetaking] = useState(false)
   const [recovery, setRecovery] = useState(false)
+  const [demo, setDemo] = useState(false)
 
   // העדפת אנימציות שמורה: מפעילה תנועה גם כשהמערכת מבקשת פחות
   useEffect(() => {
@@ -60,7 +61,24 @@ export default function App() {
     else { setProfile(null); setLoading(false) }
   }, [session])
 
-  if (!session) return <><Auth /><InstallPrompt /></>
+  if (!session && demo) {
+    return (
+      <div className="app-shell">
+        <div style={{ maxWidth: 1080, margin: '10px auto 0', padding: '0 16px', direction: 'rtl', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+          <span className="wordmark">יד ליעד 🚗</span>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <span style={{ fontSize: 12.5, color: 'var(--color-text-muted)' }}>מצב אורח</span>
+            <button className="btn-primary" style={{ padding: '7px 14px' }} onClick={() => setDemo(false)}>
+              הרשמה / התחברות
+            </button>
+          </div>
+        </div>
+        <Catalog profile={null} onProfileSaved={() => {}} demo onRequestAuth={() => setDemo(false)} />
+        <InstallPrompt />
+      </div>
+    )
+  }
+  if (!session) return <><Auth onDemo={() => setDemo(true)} /><InstallPrompt /></>
   if (recovery) return <UpdatePassword onDone={() => setRecovery(false)} />
   if (loading) return <div className="page-wrap">טוען</div>
   if (!profile || profile.sigma == null) {

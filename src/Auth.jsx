@@ -4,7 +4,7 @@ import { supabase } from './lib/supabase'
 // כתובת החזרה לקישורי אימייל: עובדת גם בפיתוח וגם ב־GitHub Pages
 const redirectTo = () => window.location.origin + import.meta.env.BASE_URL
 
-export default function Auth() {
+export default function Auth({ onDemo }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [msg, setMsg] = useState('')
@@ -62,6 +62,11 @@ export default function Auth() {
       <button onClick={signUp} disabled={loading} style={{ width: '100%', padding: 8 }}>
         הרשמה
       </button>
+      {onDemo && (
+        <button onClick={onDemo} disabled={loading} style={{ width: '100%', padding: 8, marginTop: 6 }}>
+          👀 להציץ בקטלוג בלי חשבון
+        </button>
+      )}
       <button
         onClick={forgot}
         disabled={loading}
