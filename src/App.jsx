@@ -13,7 +13,7 @@ import { GoalProgress } from './Goal'
 
 const NAV = [
   { id: 'catalog', ico: '🚗', label: 'קטלוג' },
-  { id: 'goal', ico: '🐷', label: 'היעד שלי' },
+  { id: 'goal', ico: '💵', label: 'היעד שלי' },
   { id: 'savings', ico: '💡', label: 'חיסכון' },
   { id: 'profile', ico: '👤', label: 'פרופיל' },
 ]
