@@ -303,15 +303,15 @@ a {
 }
 
 /* משתמשים שביקשו פחות תנועה במערכת: מכבים את אנימציות הקישוט */
+/* פחות תנועה: מכובד, אלא אם המשתמש הפעיל אנימציות במפורש בפרופיל */
 @media (prefers-reduced-motion: reduce) {
-  .pigIdle,
-  .pigBoom,
-  .pigBoom .pigBody,
-  .treasurePop,
-  .glint,
-  .starEye,
-  .pig-go .pigBody,
-  .pig-go .treasureBody {
+  :root:not([data-motion='on']) .pigIdle,
+  :root:not([data-motion='on']) .pigBoom .pigBody,
+  :root:not([data-motion='on']) .treasurePop,
+  :root:not([data-motion='on']) .glint,
+  :root:not([data-motion='on']) .starEye,
+  :root:not([data-motion='on']) .pig-go .pigBody,
+  :root:not([data-motion='on']) .pig-go .treasureBody {
     animation: none !important;
   }
 }

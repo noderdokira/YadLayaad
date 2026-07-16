@@ -19,6 +19,17 @@ export default function ProfileEdit({ profile, userId, onDone, onCancel, onRetak
     return ''
   }
 
+  const [forceMotion, setForceMotion] = useState(() => {
+    try { return localStorage.getItem('force_motion') === 'on' } catch { return false }
+  })
+
+  function toggleMotion(on) {
+    setForceMotion(on)
+    try { localStorage.setItem('force_motion', on ? 'on' : 'off') } catch { /* לא קריטי */ }
+    if (on) document.documentElement.setAttribute('data-motion', 'on')
+    else document.documentElement.removeAttribute('data-motion')
+  }
+
   async function save() {
     const problem = checkYears()
     if (problem) { setErr(problem); return }
@@ -62,6 +73,13 @@ export default function ProfileEdit({ profile, userId, onDone, onCancel, onRetak
           </button>
         </div>
       )}
+
+      <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginTop: 16, fontSize: 13, lineHeight: 1.5, cursor: 'pointer' }}>
+        <input type="checkbox" checked={forceMotion} onChange={e => toggleMotion(e.target.checked)} style={{ marginTop: 2 }} />
+        <span>
+          אנימציות תמיד פעילות (חזירון, מטבעות ופיצוץ), גם כשהמחשב או הטלפון מוגדרים על "פחות תנועה"
+        </span>
+      </label>
 
       {onSignOut && (
         <button onClick={onSignOut} style={{ width: '100%', marginTop: 14, padding: 11, borderRadius: 10 }}>

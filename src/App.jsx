@@ -26,6 +26,15 @@ export default function App() {
   const [retaking, setRetaking] = useState(false)
   const [recovery, setRecovery] = useState(false)
 
+  // העדפת אנימציות שמורה: מפעילה תנועה גם כשהמערכת מבקשת פחות
+  useEffect(() => {
+    try {
+      if (localStorage.getItem('force_motion') === 'on') {
+        document.documentElement.setAttribute('data-motion', 'on')
+      }
+    } catch { /* לא קריטי */ }
+  }, [])
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session))
     const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {

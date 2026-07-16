@@ -8,10 +8,12 @@
 import { forwardRef, useEffect, useRef, useState } from 'react'
 
 // משתמשים שביקשו פחות אנימציות במערכת ההפעלה מקבלים חוויה שקטה
-const reducedMotion = () =>
-  typeof window !== 'undefined' &&
-  window.matchMedia &&
-  window.matchMedia('(prefers-reduced-motion: reduce)').matches
+const reducedMotion = () => {
+  try { if (localStorage.getItem('force_motion') === 'on') return false } catch { /* לא קריטי */ }
+  return typeof window !== 'undefined' &&
+    window.matchMedia &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+}
 
 // ---------- ציור החזירון, ההבעה משתנה לפי אחוז ההתקדמות ----------
 
