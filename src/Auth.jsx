@@ -1,39 +1,76 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { supabase } from './lib/supabase'
 
 // כתובת החזרה לקישורי אימייל: עובדת גם בפיתוח וגם ב־GitHub Pages
 const redirectTo = () => window.location.origin + import.meta.env.BASE_URL
+
+// תרגום השגיאות הנפוצות של סופבייס לעברית ברורה
+function heErr(message) {
+  const m = String(message || '')
+  if (m.includes('Invalid login credentials')) return 'האימייל או הסיסמה שגויים. אם שכחת סיסמה, לחץ למטה על "שכחתי סיסמה"'
+  if (m.includes('Anonymous sign-ins')) return 'קודם מלא אימייל וסיסמה בשדות למעלה, ואז לחץ הרשמה'
+  if (m.includes('at least 6') || m.includes('Password should')) return 'הסיסמה צריכה להיות באורך 6 תווים לפחות'
+  if (m.includes('valid email') || m.includes('invalid format') || m.includes('Unable to validate email')) return 'כתובת האימייל לא תקינה, בדוק אותה שוב'
+  if (m.includes('rate limit') || m.includes('Too many')) return 'יותר מדי ניסיונות ברצף. חכה כמה דקות ונסה שוב'
+  if (m.includes('already registered')) return 'האימייל הזה כבר רשום. נסה להתחבר, או לחץ על שכחתי סיסמה'
+  return m
+}
 
 export default function Auth({ onDemo }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [msg, setMsg] = useState('')
   const [loading, setLoading] = useState(false)
+  const emailRef = useRef(null)
+  const passRef = useRef(null)
+
+  // קריאה ישירה מהשדות: עמיד גם למילוי אוטומטי שלא מעדכן את ה־state
+  function readFields() {
+    const em = (emailRef.current?.value ?? email ?? '').trim()
+    const pw = passRef.current?.value ?? password ?? ''
+    return { em, pw }
+  }
+
+  function validate(em, pw) {
+    if (!em && !pw) return 'מלא אימייל וסיסמה בשדות למעלה, ואז לחץ שוב'
+    if (!em) return 'חסר אימייל. כתוב אותו בשדה העליון'
+    if (!em.includes('@') || !em.includes('.')) return 'כתובת האימייל לא נראית תקינה'
+    if (!pw) return 'חסרה סיסמה. בחר סיסמה באורך 6 תווים לפחות'
+    if (pw.length < 6) return 'הסיסמה צריכה להיות באורך 6 תווים לפחות'
+    return ''
+  }
 
   async function signUp() {
+    const { em, pw } = readFields()
+    const problem = validate(em, pw)
+    if (problem) { setMsg(problem); return }
     setLoading(true); setMsg('')
-    const { data, error } = await supabase.auth.signUp({ email, password })
-    if (error) setMsg(error.message)
+    const { data, error } = await supabase.auth.signUp({ email: em, password: pw })
+    if (error) setMsg(heErr(error.message))
     // כשהאימייל כבר רשום, סופבייס מחזיר משתמש בלי זהויות במקום שגיאה
     else if (data?.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
       setMsg('האימייל הזה כבר רשום. נסה להתחבר, או לחץ על שכחתי סיסמה.')
     }
-    else setMsg('נרשמת! אם נדרש אישור, שלחנו מייל עם קישור.')
+    else setMsg('נרשמת! עוד רגע נכנסים...')
     setLoading(false)
   }
 
   async function signIn() {
+    const { em, pw } = readFields()
+    const problem = validate(em, pw)
+    if (problem) { setMsg(problem); return }
     setLoading(true); setMsg('')
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    setMsg(error ? error.message : 'התחברת בהצלחה.')
+    const { error } = await supabase.auth.signInWithPassword({ email: em, password: pw })
+    setMsg(error ? heErr(error.message) : 'התחברת בהצלחה!')
     setLoading(false)
   }
 
   async function forgot() {
-    if (!email) { setMsg('הזן אימייל למעלה ואז לחץ שוב על שכחתי סיסמה.'); return }
+    const { em } = readFields()
+    if (!em) { setMsg('כתוב את האימייל שלך בשדה העליון, ואז לחץ שוב על שכחתי סיסמה.'); return }
     setLoading(true); setMsg('')
-    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: redirectTo() })
-    setMsg(error ? error.message : 'אם האימייל רשום אצלנו, נשלח אליו עכשיו קישור לאיפוס הסיסמה.')
+    const { error } = await supabase.auth.resetPasswordForEmail(em, { redirectTo: redirectTo() })
+    setMsg(error ? heErr(error.message) : 'אם האימייל רשום אצלנו, נשלח אליו עכשיו קישור לאיפוס הסיסמה.')
     setLoading(false)
   }
 
@@ -41,6 +78,7 @@ export default function Auth({ onDemo }) {
     <div className="page-wrap page-wrap--narrow" style={{ marginTop: 64, maxWidth: 340 }}>
       <h2 className="wordmark" style={{ fontSize: 30, marginTop: 0, marginBottom: 14 }}>יד ליעד 🚗</h2>
       <input
+        ref={emailRef}
         placeholder="אימייל"
         type="email"
         autoComplete="email"
@@ -49,18 +87,20 @@ export default function Auth({ onDemo }) {
         style={{ display: 'block', width: '100%', padding: 8, marginBottom: 8 }}
       />
       <input
+        ref={passRef}
         type="password"
         autoComplete="current-password"
-        placeholder="סיסמה"
+        placeholder="סיסמה (6 תווים לפחות)"
         value={password}
         onChange={e => setPassword(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter') signIn() }}
         style={{ display: 'block', width: '100%', padding: 8, marginBottom: 8 }}
       />
-      <button onClick={signIn} disabled={loading} style={{ width: '100%', padding: 8, marginBottom: 6 }}>
+      <button onClick={signIn} disabled={loading} className="btn-primary" style={{ width: '100%', padding: 9, marginBottom: 6, borderRadius: 8 }}>
         התחברות
       </button>
       <button onClick={signUp} disabled={loading} style={{ width: '100%', padding: 8 }}>
-        הרשמה
+        משתמש חדש? הרשמה
       </button>
       {onDemo && (
         <button onClick={onDemo} disabled={loading} style={{ width: '100%', padding: 8, marginTop: 6 }}>
@@ -74,7 +114,7 @@ export default function Auth({ onDemo }) {
       >
         שכחתי סיסמה
       </button>
-      {msg && <p style={{ marginTop: 12 }}>{msg}</p>}
+      {msg && <p style={{ marginTop: 12, fontSize: 13.5, lineHeight: 1.5 }}>{msg}</p>}
     </div>
   )
 }
@@ -92,7 +132,7 @@ export function UpdatePassword({ onDone }) {
     setBusy(true); setMsg('')
     const { error } = await supabase.auth.updateUser({ password: pw })
     setBusy(false)
-    if (error) { setMsg(error.message); return }
+    if (error) { setMsg(heErr(error.message)); return }
     onDone()
   }
 
@@ -123,5 +163,4 @@ export function UpdatePassword({ onDone }) {
       </button>
       {msg && <p style={{ marginTop: 12, color: 'var(--color-danger)' }}>{msg}</p>}
     </div>
-  )
-}
+  )}
