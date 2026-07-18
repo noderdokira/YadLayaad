@@ -21,7 +21,7 @@ export default function Compare({ cars, profile, onBack, onPick }) {
     { label: 'מחיר', get: c => fmt(c.v.market_price) + ' ₪' },
     { label: 'שנה', get: c => c.v.year },
     { label: 'עלות חודשית משוערת', get: c => fmt(c.m.total) + ' ₪', strong: true },
-    { label: 'אגרה ורדיו', get: c => fmt(c.byKey.agra) + ' ₪' },
+    { label: 'אגרת רישוי', get: c => fmt(c.byKey.agra) + ' ₪' },
     { label: 'דלק / חשמל', get: c => fmt(c.byKey.fuel) + ' ₪' },
     { label: 'ביטוח, הערכה', get: c => fmt(c.byKey.insurance) + ' ₪' },
     { label: 'טיפולים, הערכה', get: c => fmt(c.byKey.maintenance) + ' ₪' },
@@ -35,8 +35,8 @@ export default function Compare({ cars, profile, onBack, onPick }) {
   return (
     <div className="page-wrap page-wrap--wide">
       <button onClick={onBack} style={{ marginBottom: 14, padding: '6px 10px' }}>חזרה לקטלוג</button>
-      <div className="page-title" style={{ marginBottom: 10 }}>השוואת רכבים</div>
-      {cols.length < 2 && <div style={{ color: 'var(--color-text-muted)' }}>בחר לפחות שני רכבים להשוואה</div>}
+      <div className="page-title" style={{ marginBottom: 10 }}>השוואה</div>
+      {cols.length < 2 && <div style={{ color: 'var(--color-text-muted)' }}>בחר לפחות שני כלים להשוואה</div>}
       {cols.length >= 2 && (
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>

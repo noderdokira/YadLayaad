@@ -4,6 +4,7 @@ import { supabase } from './lib/supabase'
 import { estimateM } from './lib/costModel'
 import { fetchCarImage } from './lib/carImage'
 import { normalizeCars, priceTag, usedSearchUrl, priceListSearchUrl, savingsLevel, PRICES_UPDATED } from './lib/priceBook'
+import { normalizeMotos } from './lib/motoBook'
 import MatchTest from './MatchTest'
 import Compare from './Compare'
 import CarCheck from './CarCheck'
@@ -70,7 +71,7 @@ function CarImage({ v, onClick, height = null }) {
     return () => { on = false }
   }, [v?.name])
   if (img) return <img className="car-card-img" src={img} alt={v.name} onClick={onClick} loading="lazy" style={height ? { aspectRatio: 'auto', height } : undefined} />
-  return <div className="car-card-imgless" onClick={onClick}>🚗</div>
+  return <div className="car-card-imgless" onClick={onClick}>{v?.kind === 'moto' ? '🏍️' : '🚗'}</div>
 }
 
 function Detail({ v, profile, onBack, onProfileSaved, onStartGoal, compareSel = [], onToggleCompare, demo = false }) {
@@ -258,7 +259,14 @@ function CarCard({ v, profile, onOpen, fav, onToggleFav, inCompare, onToggleComp
       <div className="car-card-body">
         <div onClick={onOpen} style={{ cursor: 'pointer' }}>
           <div style={{ fontWeight: 700, fontSize: 13.5, lineHeight: 1.35, minHeight: 36 }}>{v.name}</div>
-          <div style={{ fontSize: 11.5, color: 'var(--color-text-muted)' }}>שנת {v.year}</div>
+          <div style={{ fontSize: 11.5, color: 'var(--color-text-muted)' }}>
+            שנת {v.year}
+            {v.kind === 'moto' && v.license && (
+              <span style={{ marginInlineStart: 6, color: 'var(--color-info)', border: '1px solid var(--color-info)', borderRadius: 8, padding: '0px 6px', fontSize: 10 }}>
+                רישיון {v.license}
+              </span>
+            )}
+          </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
             <span style={{ fontWeight: 800, fontSize: 14.5, whiteSpace: 'nowrap' }}>{fmt(v.market_price)} ₪</span>
             <PriceBadge v={v} />
@@ -291,6 +299,7 @@ function CarCard({ v, profile, onOpen, fav, onToggleFav, inCompare, onToggleComp
 }
 
 export default function Catalog({ profile, onProfileSaved, demo = false, onRequestAuth }) {
+  const [kind, setKind] = useState(() => localStorage.getItem('cat_kind') === 'moto' ? 'moto' : 'car')
   const [query, setQuery] = useState(() => localStorage.getItem('cat_query') || '')
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(false)
@@ -326,7 +335,8 @@ export default function Catalog({ profile, onProfileSaved, demo = false, onReque
     localStorage.setItem('cat_yearMin', yearMin)
     localStorage.setItem('cat_sortBy', sortBy)
     localStorage.setItem('cat_favOnly', favOnly)
-  }, [query, yearMin, sortBy, favOnly])
+    localStorage.setItem('cat_kind', kind)
+  }, [query, yearMin, sortBy, favOnly, kind])
 
   function sortCars(list, sb) {
     const arr = [...list]
@@ -341,14 +351,14 @@ export default function Catalog({ profile, onProfileSaved, demo = false, onReque
     return arr
   }
 
-  async function search(q, ym = yearMin, sb = sortBy, fo = favOnly, favs = favIds) {
+  async function search(q, ym = yearMin, sb = sortBy, fo = favOnly, favs = favIds, k = kind) {
     if (fo && (!favs || favs.length === 0)) { setRows([]); return }
     setLoading(true)
     setLoadErr('')
     let req = supabase
       .from('products')
       .select(PRODUCT_COLS)
-      .eq('kind', 'car')
+      .eq('kind', k)
       .limit(400)
     if (fo) req = req.in('id', favs)
     if (ym > 0) req = req.gte('year', ym)
@@ -359,25 +369,34 @@ export default function Catalog({ profile, onProfileSaved, demo = false, onReque
     const { data, error } = await req
     setLoading(false)
     if (error) { setLoadErr('שגיאה בטעינת הקטלוג: ' + error.message); return }
-    setRows(sortCars(normalizeCars(data || []), sb))
+    const normalize = k === 'moto' ? normalizeMotos : normalizeCars
+    setRows(sortCars(normalize(data || []), sb))
   }
 
   useEffect(() => { search(query) }, [])
 
+  function switchKind(k) {
+    if (k === kind) return
+    setKind(k)
+    setCompareSel([])
+    search(query, yearMin, sortBy, favOnly, favIds, k)
+  }
+
   async function openGoalCar(id) {
     const { data: one } = await supabase
       .from('products')
-      .select(PRODUCT_COLS)
+      .select(PRODUCT_COLS + ', kind')
       .eq('id', id)
       .maybeSingle()
     if (!one) return
     const { data: grp } = await supabase
       .from('products')
-      .select(PRODUCT_COLS)
-      .eq('kind', 'car')
+      .select(PRODUCT_COLS + ', kind')
+      .eq('kind', one.kind || 'car')
       .eq('name', one.name)
       .eq('year', one.year)
-    const n = normalizeCars(grp && grp.length ? grp : [one])
+    const normalize = (one.kind || 'car') === 'moto' ? normalizeMotos : normalizeCars
+    const n = normalize(grp && grp.length ? grp : [one])
     if (n.length) setSelected(n[0])
   }
 
@@ -470,18 +489,34 @@ export default function Catalog({ profile, onProfileSaved, demo = false, onReque
         onOpenProgress={() => setShowProgress(true)}
         onProfileSaved={onProfileSaved}
       />
-      <button
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+        <button
+          onClick={() => switchKind('car')}
+          className={kind === 'car' ? 'btn-primary' : ''}
+          style={{ flex: 1, padding: 10, borderRadius: 10, fontWeight: 700, fontSize: 14 }}
+        >
+          🚗 רכבים
+        </button>
+        <button
+          onClick={() => switchKind('moto')}
+          className={kind === 'moto' ? 'btn-primary' : ''}
+          style={{ flex: 1, padding: 10, borderRadius: 10, fontWeight: 700, fontSize: 14 }}
+        >
+          🏍️ אופנועים
+        </button>
+      </div>
+      {kind === 'car' && <button
         onClick={() => setMode('test')}
         style={{ width: '100%', padding: 12, marginBottom: 8, borderRadius: 10, border: '1px solid var(--color-primary)', background: 'var(--color-surface)', color: 'var(--color-text)', fontWeight: 700, fontSize: 14 }}
       >
         {profile?.car_prefs ? 'תוצאות ההתאמה שלי' : 'מבחן התאמה, מצא רכב בשבילי'}
-      </button>
-      <button
+      </button>}
+      {kind === 'car' && <button
         onClick={() => setCarCheck(true)}
         style={{ width: '100%', padding: 12, marginBottom: 12, borderRadius: 10, border: '1px solid var(--color-info)', background: 'var(--color-surface)', color: 'var(--color-text)', fontWeight: 700, fontSize: 14 }}
       >
         🔎 בדיקת רכב לפי מספר רישוי, לפני שקונים יד שנייה
-      </button>
+      </button>}
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
         <select
@@ -529,7 +564,7 @@ export default function Catalog({ profile, onProfileSaved, demo = false, onReque
       <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
         <input
           style={{ flex: 1, padding: 10, fontSize: 15 }}
-          placeholder="חפש לפי יצרן או דגם, למשל טויוטה"
+          placeholder={kind === 'moto' ? 'חפש לפי יצרן או דגם, למשל הונדה PCX' : 'חפש לפי יצרן או דגם, למשל טויוטה'}
           value={query}
           onChange={e => setQuery(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') search(query) }}
@@ -538,7 +573,9 @@ export default function Catalog({ profile, onProfileSaved, demo = false, onReque
       </div>
 
       <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 10 }}>
-        המחירים אומתו מול מקורות ישראליים ({PRICES_UPDATED}). רכב משומש מוצג לפי שווי מוערך, רמות גימור אוחדו לכרטיס אחד.
+        {kind === 'moto'
+          ? <>מחירי האופנועים אומתו מול היבואנים הרשמיים ({PRICES_UPDATED}). משומש מוצג לפי שווי מוערך. הביטוח מוערך לפי תעריף הפול.</>
+          : <>המחירים אומתו מול מקורות ישראליים ({PRICES_UPDATED}). רכב משומש מוצג לפי שווי מוערך, רמות גימור אוחדו לכרטיס אחד.</>}
       </div>
 
       {loading && <div style={{ color: 'var(--color-text-muted)' }}>טוען</div>}
