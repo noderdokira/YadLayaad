@@ -41,6 +41,43 @@ export const ANCHORS = {
   defaultEvConsumption: 15, // קוט"ש ל 100 קמ, ממוצע לרכב חשמלי קטן
 }
 
+
+// ---------- עוגני דו גלגלי (אומתו יולי 2026) ----------
+export const MOTO_ANCHORS = {
+  updated: '2026-07',
+
+  // אגרת רישוי שנתית לאופנוע לפי נפח, דף האגרות של משרד התחבורה בתוקף מ 01.04.2026.
+  // אין אגרת רדיו לאופנוע.
+  agraGroups: [
+    { maxCc: 50, fee: 106 },
+    { maxCc: 150, fee: 194 },
+    { maxCc: Infinity, fee: 357 },
+  ],
+  evFee: 52,
+
+  // ביטוח חובה: תעריף הפול (המאגר הישראלי לביטוח רכב), ינואר 2026,
+  // פרמיה ברוטו שנתית לפי נפח, בעלות פרטית, נהג נקוב.
+  poolGross: [
+    { maxCc: 50, gross: 3386 },
+    { maxCc: 125, gross: 5131 },
+    { maxCc: 250, gross: 5180 },
+    { maxCc: 345, gross: 7387 },
+    { maxCc: 590, gross: 7847 },
+    { maxCc: Infinity, gross: 7988 },
+  ],
+  // מקדמי הפול: גיל (זכר עד 20: +22.5%) וותק (עד שנתיים: +10%), בקירוב.
+  // צד ג' לרכוש: הערכת שוק שנתית, לא חלק מתעריף הפול.
+  tsadGimelYearly: [1100, 2600],
+
+  maintenanceYearlySmall: [800, 1800],   // עד 150 סמ"ק
+  maintenanceYearlyBig: [1300, 2800],    // מעל 150 סמ"ק
+
+  defaultKmPerYear: 10000,
+  defaultConsumption: 3.0, // ליטר ל 100 קמ כשאין נתון פר דגם
+
+  gearOnce: 2500, // ציוד מיגון בסיסי: קסדה, כפפות, מעיל. חד פעמי, להתמצאות בלבד
+}
+
 const round = (x) => Math.round(x)
 
 // אגרה, מדויק, לפי קבוצת המחיר של הרכב
@@ -120,8 +157,89 @@ export function maintenanceMonthly() {
   }
 }
 
+// אגרה לאופנוע, מדויק, לפי נפח המנוע
+export function agraMotoMonthly(cc, isEv = false) {
+  const g = MOTO_ANCHORS.agraGroups.find((grp) => (cc ?? 999) <= grp.maxCc)
+  const yearly = isEv ? MOTO_ANCHORS.evFee : g.fee
+  return {
+    key: 'agra',
+    label: 'אגרת רישוי',
+    confidence: 'precise',
+    monthly: round(yearly / 12),
+    note: 'אגרת דו גלגלי לפי נפח, דף האגרות של משרד התחבורה, אפריל 2026. בלי אגרת רדיו',
+  }
+}
+
+// ביטוח לאופנוע: חובה לפי תעריף הפול + הערכת צד ג'. רוב הרוכבים הצעירים מבוטחים בפול.
+export function insuranceMotoMonthly({ birthYear, licenseYear, cc } = {}) {
+  const now = new Date().getFullYear()
+  const age = birthYear ? now - birthYear : 30
+  const seniority = licenseYear != null ? now - licenseYear : 5
+
+  const band = MOTO_ANCHORS.poolGross.find((b) => (cc ?? 999) <= b.maxCc)
+  const ageF = age <= 20 ? 1.225 : age <= 24 ? 1.0 : age <= 39 ? 0.94 : age <= 49 ? 0.9 : 0.85
+  const senF = seniority < 2 ? 1.1 : seniority < 3 ? 1.075 : seniority < 4 ? 1.05 : seniority < 8 ? 1.0 : 0.92
+  const chova = band.gross * ageF * senF
+
+  const [tgLo, tgHi] = MOTO_ANCHORS.tsadGimelYearly
+  const lo = chova * 0.7 + tgLo   // עם השתתפות עצמית (הנחת 30% בפול) וצד ג' זול
+  const hi = chova + tgHi
+  const t = seniority < 2 ? 0.8 : seniority < 5 ? 0.55 : 0.35
+  const point = lo + t * (hi - lo)
+  return {
+    key: 'insurance',
+    label: 'ביטוח חובה וצד ג\'',
+    confidence: 'estimate',
+    monthly: round(point / 12),
+    rangeMonthly: [round(lo / 12), round(hi / 12)],
+    note: 'חובה לפי תעריף הפול, ינואר 2026, לפי גיל, ותק ונפח, בתוספת הערכת צד ג\'. לא הצעת מחיר',
+  }
+}
+
+// תחזוקה לאופנוע, הערכה גסה לפי גודל
+export function maintenanceMotoMonthly(cc) {
+  const [lo, hi] = (cc ?? 999) <= 150 ? MOTO_ANCHORS.maintenanceYearlySmall : MOTO_ANCHORS.maintenanceYearlyBig
+  return {
+    key: 'maintenance',
+    label: 'טיפולים, צמיגים ובלאי',
+    confidence: 'estimate',
+    monthly: round((lo + hi) / 2 / 12),
+    rangeMonthly: [round(lo / 12), round(hi / 12)],
+    note: 'הערכה גסה. צמיגים ורצועות מתחלפים תדיר יותר מברכב',
+  }
+}
+
+// הרכבת עלות חודשית לאופנוע
+function estimateMotoM(vehicle, user = {}, opts = { includeEstimates: true }) {
+  const fuel = fuelMonthly({
+    kmPerYear: user.kmPerYear ?? MOTO_ANCHORS.defaultKmPerYear,
+    consumption: vehicle.consumption ?? MOTO_ANCHORS.defaultConsumption,
+    isEv: false,
+  })
+  if (vehicle.consumption == null) {
+    fuel.confidence = 'default'
+    fuel.note = 'לפי צריכה ממוצעת של 3 ליטר ל 100 קמ לאופנוע, ערוך לפי הדגם שלך'
+  } else {
+    fuel.note = 'לפי צריכת היצרן לדגם, כ 10,000 קמ בשנה ומחיר בנזין 95 המפוקח'
+  }
+  const solid = [agraMotoMonthly(vehicle.cc, vehicle.isEv), fuel]
+  const estimates = [
+    insuranceMotoMonthly({ birthYear: user.birthYear, licenseYear: user.licenseYear, cc: vehicle.cc }),
+    maintenanceMotoMonthly(vehicle.cc),
+  ]
+  const totalSolid = solid.reduce((s, c) => s + c.monthly, 0)
+  const totalAll = totalSolid + estimates.reduce((s, c) => s + c.monthly, 0)
+  return {
+    components: opts.includeEstimates ? [...solid, ...estimates] : solid,
+    excluded: opts.includeEstimates ? [] : estimates,
+    totalCertain: totalSolid,
+    total: opts.includeEstimates ? totalAll : totalSolid,
+  }
+}
+
 // הרכבה. מחזיר את הרכיבים ואת הסכומים, עם או בלי ההערכות.
 export function estimateM(vehicle, user = {}, opts = { includeEstimates: true }) {
+  if (vehicle?.kind === 'moto') return estimateMotoM(vehicle, user, opts)
   const solid = [
     agraMonthly(vehicle.market_price ?? 0),
     fuelMonthly({ kmPerYear: user.kmPerYear, consumption: vehicle.consumption, isEv: vehicle.isEv }),

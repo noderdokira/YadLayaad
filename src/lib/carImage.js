@@ -19,6 +19,8 @@ const BRANDS = {
   'דייהטסו': 'Daihatsu', 'סאנגיונג': 'SsangYong', 'איסוזו': 'Isuzu',
   'אלפא': 'Alfa Romeo', "ג'אקו": 'Jaecoo', 'אומודה': 'Omoda', 'דיפאל': 'Deepal',
   'אורה': 'Ora', 'איון': 'Aion', 'גי.אי.סי': 'GAC', 'קיי גי מוביליט': 'KGM',
+  // דו גלגלי
+  'וספה': 'Vespa', 'קוואסאקי': 'Kawasaki', 'רויאל אנפילד': 'Royal Enfield', 'סאן יאנג': 'SYM',
 }
 
 // ערכים שהם בוודאות לא רכב פרטי, גם אם השם דומה
@@ -26,6 +28,11 @@ const NOT_CAR = /machine.?gun|firearm|rifle|pistol|revolver|weapon|missile|torpe
 
 // עדות חיובית לכך שמדובר ברכב
 const IS_CAR = /\b(car|automobile|suv|crossover|hatchback|sedan|saloon|supermini|subcompact|compact|minivan|van|pickup|mpv|roadster|coupe|cabriolet|convertible|station wagon|estate|electric vehicle|city car|kei car|microcar|off-road|4x4|light commercial vehicle)\b/i
+
+// ולידציה לדו גלגלי: אותם פסולים, אבל אופנוע וקטנוע הם דווקא ההוכחה החיובית
+const NOT_MOTO = /machine.?gun|firearm|rifle|pistol|revolver|weapon|missile|torpedo|submarine|warship|frigate|artillery|airport|airfield|air base|airline|aircraft|helicopter|avionics|locomotive|railway|rail line|tram|manufacturer|automaker|marque|company|corporation|album|song|band|film|movie|video game|\b(car|automobile|sedan|suv)\b/i
+
+const IS_MOTO = /\b(motorcycle|scooter|maxi.?scooter|moped|motorbike|underbone|cruiser|sport bike|naked bike)\b/i
 
 const cache = new Map()
 const LS_KEY = 'carimg2_' // גרסת מטמון חדשה, מאפסת תוצאות שגויות שנשמרו בעבר
@@ -51,12 +58,14 @@ async function wikiSearch(q) {
 export async function fetchCarImage(v) {
   const name = v?.name || ''
   if (!name) return null
-  if (cache.has(name)) return cache.get(name)
+  const isMoto = v?.kind === 'moto'
+  const key = (isMoto ? 'm|' : '') + name
+  if (cache.has(key)) return cache.get(key)
 
-  const stored = lsGet(name)
+  const stored = lsGet(key)
   if (stored != null) {
     const url = stored === '' ? null : stored
-    cache.set(name, url)
+    cache.set(key, url)
     return url
   }
 
@@ -67,12 +76,13 @@ export async function fetchCarImage(v) {
     const brandEn = brandHe ? BRANDS[brandHe] : ''
     let tokens = latin.split(/\s+/).filter(t => t.length >= 2 && t.toUpperCase() !== brandEn.toUpperCase())
 
-    let pages = await wikiSearch((brandEn + ' ' + latin + ' car').replace(/\s+/g, ' ').trim())
+    const suffix = isMoto ? '' : ' car'
+    let pages = await wikiSearch((brandEn + ' ' + latin + suffix).replace(/\s+/g, ' ').trim())
     if (!pages.length && tokens.length) {
       // אין תוצאות? מרככים סיומת גרסה ישראלית, למשל T03D הופך ל־T03
       const soft = tokens.map(t => t.replace(/(\d)[A-Za-z]$/, '$1'))
       if (soft.join(' ') !== tokens.join(' ')) {
-        pages = await wikiSearch((brandEn + ' ' + soft.join(' ') + ' car').replace(/\s+/g, ' ').trim())
+        pages = await wikiSearch((brandEn + ' ' + soft.join(' ') + suffix).replace(/\s+/g, ' ').trim())
         tokens = soft
       }
     }
@@ -80,7 +90,7 @@ export async function fetchCarImage(v) {
     for (const p of pages) {
       const title = p.title || ''
       const txt = title + ' · ' + (p.description || '')
-      if (NOT_CAR.test(txt)) continue
+      if ((isMoto ? NOT_MOTO : NOT_CAR).test(txt)) continue
       const tl = title.toLowerCase()
       const words = tl.split(/[^a-z0-9]+/).filter(Boolean)
       const brandInTitle = brandEn && tl.includes(brandEn.toLowerCase())
@@ -89,15 +99,16 @@ export async function fetchCarImage(v) {
         return tl.includes(k) || words.some(w => w.length >= 3 && k.startsWith(w))
       })
       // חייבים את שם הדגם בכותרת, בתוספת עדות שזה רכב או לפחות שם המותג
+      const isKind = isMoto ? IS_MOTO : IS_CAR
       const ok = tokens.length === 0
-        ? (IS_CAR.test(txt) && brandInTitle)
-        : (modelInTitle && (IS_CAR.test(txt) || brandInTitle))
+        ? (isKind.test(txt) && brandInTitle)
+        : (modelInTitle && (isKind.test(txt) || brandInTitle))
       if (ok && p.thumbnail?.source) { url = p.thumbnail.source; break }
     }
   } catch {
     url = null
   }
-  cache.set(name, url)
-  lsSet(name, url)
+  cache.set(key, url)
+  lsSet(key, url)
   return url
 }
