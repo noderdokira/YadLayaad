@@ -1,0 +1,40 @@
+name: Refresh image map
+
+on:
+  schedule:
+    # כל יום ראשון ב-03:00 UTC. ויקישיתוף מתעדכן כל הזמן, ודגמי השנתון
+    # החדש מקבלים תמונות לאורך השנה.
+    - cron: '0 3 * * 0'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build image map
+        env:
+          SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        run: node tools/fetchImages.mjs
+
+      - name: Commit if changed
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet -- src/lib/imageMap.json tools/missing-images.txt; then
+            echo "אין שינוי במפת התמונות"
+          else
+            n=$(node -e "console.log(Object.keys(require('./src/lib/imageMap.json')).length)")
+            git add src/lib/imageMap.json tools/missing-images.txt
+            git commit -m "Refresh image map ($n images)"
+            git push
+          fi
