@@ -118,6 +118,7 @@ function Detail({ v, profile, onBack, onProfileSaved, onStartGoal, compareSel = 
   }
 
   const a = v.attrs || {}
+  const isMoto = v.kind === 'moto'
   const rowSt = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--color-border)', gap: 10 }
   const inCompare = compareSel.some(x => x.id === v.id)
 
@@ -188,7 +189,7 @@ function Detail({ v, profile, onBack, onProfileSaved, onStartGoal, compareSel = 
 
       <label style={{ display: 'block', fontSize: 13, marginBottom: 10, lineHeight: 1.5 }}>
         <input type="checkbox" checked={includeEst} onChange={e => setIncludeEst(e.target.checked)} />
-        {' '}לכלול הערכת ביטוח ותחזוקה בסכום. אלה סכומים משוערים לפי מאפייני הרכב והנהג, לא הצעת מחיר. כל רכיב ניתן לעריכה.
+        {' '}לכלול הערכת ביטוח ותחזוקה בסכום. אלה סכומים משוערים לפי מאפייני {isMoto ? 'הכלי והרוכב' : 'הרכב והנהג'}, לא הצעת מחיר. כל רכיב ניתן לעריכה.
       </label>
 
       {dirty && (
@@ -239,7 +240,7 @@ function Detail({ v, profile, onBack, onProfileSaved, onStartGoal, compareSel = 
         className="btn-primary"
         style={{ display: 'block', width: '100%', marginTop: 16, padding: 12, borderRadius: 10, fontSize: 15 }}
       >
-        בחר רכב זה והתחל לחסוך
+        {isMoto ? 'בחר דגם זה והתחל לחסוך' : 'בחר רכב זה והתחל לחסוך'}
       </button>
 
       <div style={{ marginTop: 14, fontSize: 12.5 }}>
@@ -585,7 +586,7 @@ export default function Catalog({ profile, onProfileSaved, demo = false, onReque
         </div>
       )}
       {!loading && rows.length === 0 && (
-        <div style={{ color: 'var(--color-text-muted)' }}>{favOnly ? 'אין עדיין מועדפים. סמן כוכב על רכבים שמעניינים אותך' : 'לא נמצאו תוצאות'}</div>
+        <div style={{ color: 'var(--color-text-muted)' }}>{favOnly ? (kind === 'moto' ? 'אין עדיין מועדפים. סמן כוכב על דגמים שמעניינים אותך' : 'אין עדיין מועדפים. סמן כוכב על רכבים שמעניינים אותך') : 'לא נמצאו תוצאות'}</div>
       )}
       <div className="car-grid">
         {rows.map(v => (

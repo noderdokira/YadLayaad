@@ -63,7 +63,7 @@ export function GoalSetup({ v, m, profile, onBack, onDone }) {
       <div style={{ color: 'var(--color-text-muted)', marginBottom: 14 }}>{v.name} · שנת {v.year}</div>
 
       <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, padding: 12, marginBottom: 14, fontSize: 14 }}>
-        <Line label="מחיר הרכב" val={fmt(price) + ' ₪'} />
+        <Line label={v.kind === 'moto' ? 'מחיר הדגם' : 'מחיר הרכב'} val={fmt(price) + ' ₪'} />
         <Line label="כבר חסכת" val={fmt(saved) + ' ₪'} />
         <Line label="נשאר לחסוך" val={fmt(target) + ' ₪'} strong />
         {m != null && <Line label="החזקה חודשית אחרי הקנייה, בערך" val={fmt(m) + ' ₪'} />}
