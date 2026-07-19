@@ -36,9 +36,9 @@ const NOT_MOTO = /machine.?gun|firearm|rifle|pistol|revolver|weapon|missile|torp
 const IS_MOTO = /\b(motorcycle|scooter|maxi.?scooter|moped|motorbike|underbone|cruiser|sport bike|naked bike)\b/i
 
 const cache = new Map()
-// גרסה 3: הועלתה כשנוסף רמז הוויקי לאופנועים, כדי לאפס תוצאות ישנות שנשמרו
-// לפני שהיה רמז ולכן היו חסרות או שגויות.
-const LS_KEY = 'carimg3_'
+// גרסה 4: הועלתה כשנוסף חיפוש בויקישיתוף והתאמה לפי שנתון. מאפסת תוצאות
+// שנשמרו לפני כן, כולל דגמים שנשמרו בטעות בלי תמונה בכלל.
+const LS_KEY = 'carimg4_'
 
 function lsGet(key) {
   try { return localStorage.getItem(LS_KEY + key) } catch { return null }
@@ -61,6 +61,55 @@ async function wikiByTitle(title) {
   return pages[0]?.thumbnail?.source || null
 }
 
+// ויקישיתוף (Wikimedia Commons) מכיל הרבה יותר תמונות רכב מאשר יש ערכים
+// בוויקיפדיה האנגלית, ושמות הקבצים שם תיאוריים ("Honda CB750 Hornet 2025.jpg").
+// זה מאפשר לאמת את ההתאמה מול שם הקובץ במקום לסמוך על דירוג החיפוש.
+function stripQualifiers(model) {
+  return model.toUpperCase()
+    .replace(/\b20\d\d\b/g, '')      // שנתון אינו מזהה דגם
+    .replace(/\b\d+\s?KW\b/g, '')    // וגם לא קיצור הספק כמו 35KW
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+async function commonsImage(brandEn, model, year) {
+  if (!brandEn || !model) return null
+  const core = stripQualifiers(model)
+  if (!core) return null
+  const api = 'https://commons.wikimedia.org/w/api.php'
+    + '?action=query&format=json&origin=*'
+    + '&generator=search&gsrnamespace=6&gsrlimit=14&gsrsearch=' + encodeURIComponent(brandEn + ' ' + core)
+    + '&prop=imageinfo&iiprop=url%7Cmime&iiurlwidth=480'
+  const res = await fetch(api)
+  const json = await res.json()
+  const pages = Object.values(json?.query?.pages || {}).sort((a, b) => (a.index ?? 9) - (b.index ?? 9))
+
+  const B = brandEn.toUpperCase()
+  const tokens = core.split(/\s+/).filter(Boolean)
+  // כל מספר בשם הדגם חייב להופיע בשם הקובץ. בלי זה חיפוש "ELIMINATOR 500"
+  // מחזיר תמונה של ELIMINATOR 125, שזה דגם אחר לגמרי.
+  const nums = core.match(/\d+/g) || []
+  const hits = []
+  for (const p of pages) {
+    const title = (p.title || '').replace(/^File:/, '')
+    const T = title.toUpperCase().replace(/[_\-()]/g, ' ')
+    const ii = p.imageinfo?.[0]
+    if (!ii || !/^image\/(jpeg|png)$/.test(ii.mime || '')) continue
+    if (!T.includes(B)) continue
+    if (!tokens.every(t => T.includes(t.replace(/[-()]/g, ' ').trim()))) continue
+    if (!nums.every(n => new RegExp('(^|[^0-9])' + n + '([^0-9]|$)').test(T))) continue
+    // שנתון מתוך שם הקובץ. דגם 2022 ודגם 2026 נראים שונה, ולכן מעדיפים
+    // את התמונה הקרובה ביותר לשנתון המבוקש. קובץ בלי שנה מקבל קנס בינוני
+    // כדי שלא יעקוף תמונה מתוארכת שמתאימה.
+    const fy = (title.match(/\b(20\d\d)\b/) || [])[1]
+    const gap = fy && year ? Math.abs(Number(fy) - year) : 6
+    // קובץ ששמו פותח בשם היצרן הוא בדרך כלל תמונת דגם נקייה ולא צילום מאירוע
+    hits.push({ url: ii.thumburl, lead: T.trimStart().startsWith(B) ? 0 : 1, gap })
+  }
+  hits.sort((a, b) => a.gap - b.gap || a.lead - b.lead)
+  return hits[0]?.url || null
+}
+
 async function wikiSearch(q) {
   const api = 'https://en.wikipedia.org/w/api.php'
     + '?action=query&format=json&origin=*'
@@ -75,7 +124,8 @@ export async function fetchCarImage(v) {
   const name = v?.name || ''
   if (!name) return null
   const isMoto = v?.kind === 'moto'
-  const key = (isMoto ? 'm|' : '') + name
+  // השנה חלק מהמפתח: אותו דגם בשנתון אחר הוא תמונה אחרת
+  const key = (isMoto ? 'm|' : '') + name + '|' + (v?.year ?? '')
   if (cache.has(key)) return cache.get(key)
 
   const stored = lsGet(key)
@@ -87,22 +137,28 @@ export async function fetchCarImage(v) {
 
   let url = null
   try {
-    // מסלול מהיר: רמז מפורש מספר הדגמים, בלי ניחוש ובלי ולידציה (הרמז אמין).
+    const latin = (name.match(/[A-Za-z0-9][A-Za-z0-9 .\-]*/g) || []).join(' ').trim()
+    const brandHe = Object.keys(BRANDS).find(b => name.includes(b))
+    const brandEn = brandHe ? BRANDS[brandHe] : ''
+    let tokens = latin.split(/\s+/).filter(t => t.length >= 2 && t.toUpperCase() !== brandEn.toUpperCase())
+
+    // שכבה ראשונה: ויקישיתוף. מכסה דגמים שאין להם ערך ויקיפדיה משלהם,
+    // ההתאמה מאומתת מול שם הקובץ, וזה המקור היחיד שממנו אפשר לגזור שנתון.
+    url = await commonsImage(brandEn, latin, v?.year)
+    if (url) { cache.set(key, url); lsSet(key, url); return url }
+
+    // שכבה שנייה: רמז מפורש לערך ויקיפדיה מספר הדגמים. תמונה אחת לכל הדגם,
+    // בלי הבחנה בין שנתונים, ולכן היא באה רק אחרי ויקישיתוף.
     if (v?.wiki) {
       url = await wikiByTitle(v.wiki)
       if (url) { cache.set(key, url); lsSet(key, url); return url }
     }
 
-    // דגם שנבדק ידנית ואין לו ערך ויקיפדיה מתאים: עוצרים כאן.
-    // חיפוש חופשי היה מוצא דגם דומה בשם מדור אחר, וזה גרוע מאייקון.
+    // דגם דו גלגלי שנבדק ידנית ואין לו ערך ויקיפדיה: עוצרים כאן.
+    // חיפוש טקסט חופשי היה מוצא דגם דומה בשם מדור אחר, וזה גרוע מאייקון.
     if (v?.wikiChecked && !v?.wiki) {
       cache.set(key, null); lsSet(key, null); return null
     }
-
-    const latin = (name.match(/[A-Za-z0-9][A-Za-z0-9 .\-]*/g) || []).join(' ').trim()
-    const brandHe = Object.keys(BRANDS).find(b => name.includes(b))
-    const brandEn = brandHe ? BRANDS[brandHe] : ''
-    let tokens = latin.split(/\s+/).filter(t => t.length >= 2 && t.toUpperCase() !== brandEn.toUpperCase())
 
     const suffix = isMoto ? '' : ' car'
     let pages = await wikiSearch((brandEn + ' ' + latin + suffix).replace(/\s+/g, ' ').trim())
