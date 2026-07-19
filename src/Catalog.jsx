@@ -5,12 +5,26 @@ import { estimateM } from './lib/costModel'
 import { fetchCarImage } from './lib/carImage'
 import { normalizeCars, priceTag, usedSearchUrl, priceListSearchUrl, savingsLevel, PRICES_UPDATED } from './lib/priceBook'
 import { normalizeMotos } from './lib/motoBook'
+import IMAGE_MAP from './lib/imageMap.json'
 import MatchTest from './MatchTest'
 import Compare from './Compare'
 import CarCheck from './CarCheck'
 import { GoalBanner, GoalSetup, GoalProgress } from './Goal'
 
 const fmt = n => (n == null || n === '' ? 'אין נתון' : Number(n).toLocaleString('he-IL'))
+
+// יצרן = החלק העברי שלפני האותיות הלטיניות בשם הדגם
+function brandOf(name) {
+  const m = String(name || '').match(/^[^A-Za-z0-9]+/)
+  return m ? m[0].trim() : ''
+}
+
+// "תמונה מאומתת" = הדגם נמצא במפה שנבנתה על ידי tools/fetchImages.mjs ואומתה
+// מול שם הקובץ בוויקישיתוף. חיפוש חי עשוי למצוא עוד תמונות, אבל רק מה שבמפה
+// עבר בדיקה, ולכן רק הוא נחשב מאומת בסינון הזה.
+function hasVerifiedImage(v) {
+  return !!IMAGE_MAP[(v.kind === 'moto' ? 'm|' : '') + v.name + '|' + (v.year ?? '')]
+}
 
 const PRODUCT_COLS = 'id, name, year, market_price, addons_once, monthly_cost, attrs'
 
@@ -314,6 +328,11 @@ export default function Catalog({ profile, onProfileSaved, demo = false, onReque
   const [sortBy, setSortBy] = useState(() => localStorage.getItem('cat_sortBy') || 'year_desc')
   const [favIds, setFavIds] = useState(() => (Array.isArray(profile?.favorites) ? profile.favorites : []))
   const [favOnly, setFavOnly] = useState(() => localStorage.getItem('cat_favOnly') === 'true')
+  const [imgOnly, setImgOnly] = useState(() => localStorage.getItem('cat_imgOnly') === 'true')
+  const [brandSel, setBrandSel] = useState('')
+  const [licSel, setLicSel] = useState('')
+  const [ccMax, setCcMax] = useState(0)
+  const [priceMax, setPriceMax] = useState(0)
   const [compareSel, setCompareSel] = useState([])
   const [compareView, setCompareView] = useState(false)
   const [darkMode, setDarkMode] = useState(() => {
@@ -337,7 +356,8 @@ export default function Catalog({ profile, onProfileSaved, demo = false, onReque
     localStorage.setItem('cat_sortBy', sortBy)
     localStorage.setItem('cat_favOnly', favOnly)
     localStorage.setItem('cat_kind', kind)
-  }, [query, yearMin, sortBy, favOnly, kind])
+    localStorage.setItem('cat_imgOnly', imgOnly)
+  }, [query, yearMin, sortBy, favOnly, kind, imgOnly])
 
   function sortCars(list, sb) {
     const arr = [...list]
@@ -380,6 +400,7 @@ export default function Catalog({ profile, onProfileSaved, demo = false, onReque
     if (k === kind) return
     setKind(k)
     setCompareSel([])
+    setBrandSel(''); setLicSel(''); setCcMax(0); setPriceMax(0)
     search(query, yearMin, sortBy, favOnly, favIds, k)
   }
 
@@ -419,6 +440,20 @@ export default function Catalog({ profile, onProfileSaved, demo = false, onReque
   }
 
   const sel = { flex: 1, padding: 8, fontSize: 13 }
+
+  // סינון בבחירה ולא בהקלדה. הערכים נגזרים מהתוצאות שכבר נטענו,
+  // ולכן לא מוצע למשתמש מסנן שלא יחזיר כלום.
+  const brands = [...new Set(rows.map(v => brandOf(v.name)).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'he'))
+  const visible = rows.filter(v => {
+    if (imgOnly && !hasVerifiedImage(v)) return false
+    if (brandSel && brandOf(v.name) !== brandSel) return false
+    if (licSel && v.license !== licSel) return false
+    if (ccMax && !(v.cc != null && v.cc <= ccMax)) return false
+    if (priceMax && !((v.market_price ?? 0) <= priceMax)) return false
+    return true
+  })
+  const withImg = rows.filter(hasVerifiedImage).length
+  const filtersOn = imgOnly || brandSel || licSel || ccMax || priceMax
 
   if (showProgress) {
     return <GoalProgress profile={profile} onBack={() => setShowProgress(false)} />
@@ -554,6 +589,64 @@ export default function Catalog({ profile, onProfileSaved, demo = false, onReque
         </button>
       </div>
 
+
+      <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, padding: 10, marginBottom: 12 }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <select value={brandSel} onChange={e => setBrandSel(e.target.value)} style={{ padding: 7, fontSize: 12.5, minWidth: 120 }}>
+            <option value="">כל היצרנים</option>
+            {brands.map(b => <option key={b} value={b}>{b}</option>)}
+          </select>
+
+          {kind === 'moto' && (
+            <select value={licSel} onChange={e => setLicSel(e.target.value)} style={{ padding: 7, fontSize: 12.5 }}>
+              <option value="">כל דרגות הרישיון</option>
+              <option value="A2">A2 · עד 125 סמ"ק, מגיל 16</option>
+              <option value="A1">A1 · עד 47.5 כ"ס, מגיל 18</option>
+              <option value="A">A · ללא הגבלה, מגיל 21</option>
+            </select>
+          )}
+
+          {kind === 'moto' && (
+            <select value={ccMax} onChange={e => setCcMax(Number(e.target.value))} style={{ padding: 7, fontSize: 12.5 }}>
+              <option value={0}>כל הנפחים</option>
+              <option value={125}>עד 125 סמ"ק</option>
+              <option value={300}>עד 300 סמ"ק</option>
+              <option value={500}>עד 500 סמ"ק</option>
+              <option value={800}>עד 800 סמ"ק</option>
+            </select>
+          )}
+
+          <select value={priceMax} onChange={e => setPriceMax(Number(e.target.value))} style={{ padding: 7, fontSize: 12.5 }}>
+            <option value={0}>כל המחירים</option>
+            <option value={15000}>עד 15,000 ₪</option>
+            <option value={25000}>עד 25,000 ₪</option>
+            <option value={40000}>עד 40,000 ₪</option>
+            <option value={60000}>עד 60,000 ₪</option>
+            <option value={100000}>עד 100,000 ₪</option>
+          </select>
+
+          <label style={{ fontSize: 12.5, display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+            <input type="checkbox" checked={imgOnly} onChange={e => setImgOnly(e.target.checked)} />
+            רק עם תמונה מאומתת ({withImg})
+          </label>
+
+          {filtersOn && (
+            <button
+              onClick={() => { setBrandSel(''); setLicSel(''); setCcMax(0); setPriceMax(0); setImgOnly(false) }}
+              style={{ padding: '5px 10px', fontSize: 12, borderRadius: 8 }}
+            >
+              ניקוי סינון
+            </button>
+          )}
+        </div>
+
+        {filtersOn && (
+          <div style={{ fontSize: 11.5, color: 'var(--color-text-muted)', marginTop: 8 }}>
+            מוצגים {visible.length} מתוך {rows.length}
+          </div>
+        )}
+      </div>
+
       {compareSel.length > 0 && (
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, padding: 8 }}>
           <div style={{ fontSize: 12.5, flex: 1 }}>נבחרו {compareSel.length} מתוך 3 להשוואה</div>
@@ -585,11 +678,17 @@ export default function Catalog({ profile, onProfileSaved, demo = false, onReque
           {loadErr} <button onClick={() => search(query)} style={{ padding: '3px 8px', fontSize: 12 }}>נסה שוב</button>
         </div>
       )}
-      {!loading && rows.length === 0 && (
-        <div style={{ color: 'var(--color-text-muted)' }}>{favOnly ? (kind === 'moto' ? 'אין עדיין מועדפים. סמן כוכב על דגמים שמעניינים אותך' : 'אין עדיין מועדפים. סמן כוכב על רכבים שמעניינים אותך') : 'לא נמצאו תוצאות'}</div>
+      {!loading && visible.length === 0 && (
+        <div style={{ color: 'var(--color-text-muted)' }}>{
+          rows.length > 0
+            ? 'אין תוצאות לסינון הזה. נסה להרחיב אותו או ללחוץ ניקוי סינון'
+            : (favOnly
+                ? (kind === 'moto' ? 'אין עדיין מועדפים. סמן כוכב על דגמים שמעניינים אותך' : 'אין עדיין מועדפים. סמן כוכב על רכבים שמעניינים אותך')
+                : 'לא נמצאו תוצאות')
+        }</div>
       )}
       <div className="car-grid">
-        {rows.map(v => (
+        {visible.map(v => (
           <CarCard
             key={v.name + '|' + v.year}
             v={v}
