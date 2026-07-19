@@ -21,6 +21,7 @@ const BRANDS = {
   'אורה': 'Ora', 'איון': 'Aion', 'גי.אי.סי': 'GAC', 'קיי גי מוביליט': 'KGM',
   // דו גלגלי
   'וספה': 'Vespa', 'קוואסאקי': 'Kawasaki', 'רויאל אנפילד': 'Royal Enfield', 'סאן יאנג': 'SYM',
+  'ימאהה': 'Yamaha',
 }
 
 // ערכים שהם בוודאות לא רכב פרטי, גם אם השם דומה
@@ -35,7 +36,9 @@ const NOT_MOTO = /machine.?gun|firearm|rifle|pistol|revolver|weapon|missile|torp
 const IS_MOTO = /\b(motorcycle|scooter|maxi.?scooter|moped|motorbike|underbone|cruiser|sport bike|naked bike)\b/i
 
 const cache = new Map()
-const LS_KEY = 'carimg2_' // גרסת מטמון חדשה, מאפסת תוצאות שגויות שנשמרו בעבר
+// גרסה 3: הועלתה כשנוסף רמז הוויקי לאופנועים, כדי לאפס תוצאות ישנות שנשמרו
+// לפני שהיה רמז ולכן היו חסרות או שגויות.
+const LS_KEY = 'carimg3_'
 
 function lsGet(key) {
   try { return localStorage.getItem(LS_KEY + key) } catch { return null }
@@ -43,6 +46,19 @@ function lsGet(key) {
 
 function lsSet(key, val) {
   try { localStorage.setItem(LS_KEY + key, val ?? '') } catch { /* מלא, לא נורא */ }
+}
+
+// שליפה לפי שם ערך מדויק. זה המסלול המהיר והוודאי: כשיש רמז wiki בספר הדגמים
+// אין צורך לנחש דרך מנוע החיפוש, ולכן גם אין סיכון להביא תמונה של דגם אחר.
+async function wikiByTitle(title) {
+  const api = 'https://en.wikipedia.org/w/api.php'
+    + '?action=query&format=json&origin=*&redirects=1'
+    + '&prop=pageimages&piprop=thumbnail&pithumbsize=480'
+    + '&titles=' + encodeURIComponent(title)
+  const res = await fetch(api)
+  const json = await res.json()
+  const pages = Object.values(json?.query?.pages || {})
+  return pages[0]?.thumbnail?.source || null
 }
 
 async function wikiSearch(q) {
@@ -71,6 +87,18 @@ export async function fetchCarImage(v) {
 
   let url = null
   try {
+    // מסלול מהיר: רמז מפורש מספר הדגמים, בלי ניחוש ובלי ולידציה (הרמז אמין).
+    if (v?.wiki) {
+      url = await wikiByTitle(v.wiki)
+      if (url) { cache.set(key, url); lsSet(key, url); return url }
+    }
+
+    // דגם שנבדק ידנית ואין לו ערך ויקיפדיה מתאים: עוצרים כאן.
+    // חיפוש חופשי היה מוצא דגם דומה בשם מדור אחר, וזה גרוע מאייקון.
+    if (v?.wikiChecked && !v?.wiki) {
+      cache.set(key, null); lsSet(key, null); return null
+    }
+
     const latin = (name.match(/[A-Za-z0-9][A-Za-z0-9 .\-]*/g) || []).join(' ').trim()
     const brandHe = Object.keys(BRANDS).find(b => name.includes(b))
     const brandEn = brandHe ? BRANDS[brandHe] : ''
