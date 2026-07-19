@@ -3,6 +3,11 @@
 // ושהוא של הדגם הנכון. בלי זיהוי ודאי לא מציגים תמונה בכלל
 // (עדיף אייקון מאשר מקלע MG3 או שדה התעופה JAC).
 
+// מפה סטטית שנבנית שבועית על ידי tools/fetchImages.mjs. זה המקור המהיר והיציב:
+// אין קריאת רשת, אין הגבלת קצב, והתמונה מופיעה מיד. חיפוש חי נשאר רק לדגמים
+// שנוספו לקטלוג אחרי הריצה האחרונה של הסקריפט.
+import IMAGE_MAP from './imageMap.json'
+
 const BRANDS = {
   'טויוטה': 'Toyota', 'קיה': 'Kia', 'יונדאי': 'Hyundai', 'שברולט': 'Chevrolet',
   'סיטרואן': 'Citroen', 'מאזדה': 'Mazda', 'סקודה': 'Skoda', 'סוזוקי': 'Suzuki',
@@ -22,6 +27,11 @@ const BRANDS = {
   // דו גלגלי
   'וספה': 'Vespa', 'קוואסאקי': 'Kawasaki', 'רויאל אנפילד': 'Royal Enfield', 'סאן יאנג': 'SYM',
   'ימאהה': 'Yamaha',
+  // נוספו אחרי שהתגלה שהם נופלים בלי ניסיון חיפוש כלל.
+  // "גיאיוואן" ו"לינקסיס" מופיעים גם הם בקטלוג אך לא זוהה בוודאות
+  // מיהו היצרן, ולכן לא נוספו כאן. עדיף חסר על פני מיפוי שגוי.
+  'מרוטי-סוזוקי': 'Maruti Suzuki', 'דאיון': 'Dayun', 'סמארט': 'Smart',
+  'גיי.איי.סי': 'GAC',
 }
 
 // ערכים שהם בוודאות לא רכב פרטי, גם אם השם דומה
@@ -149,6 +159,9 @@ export async function fetchCarImage(v) {
   // השנה חלק מהמפתח: אותו דגם בשנתון אחר הוא תמונה אחרת
   const key = (isMoto ? 'm|' : '') + name + '|' + (v?.year ?? '')
   if (cache.has(key)) return cache.get(key)
+
+  const mapped = IMAGE_MAP[key]
+  if (mapped) { cache.set(key, mapped); return mapped }
 
   const stored = lsGet(key)
   if (stored != null) {
