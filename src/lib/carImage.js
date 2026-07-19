@@ -48,6 +48,31 @@ function lsSet(key, val) {
   try { localStorage.setItem(LS_KEY + key, val ?? '') } catch { /* מלא, לא נורא */ }
 }
 
+// מגביל מקביליות. בקטלוג יש מאות כרטיסים, וירי של מאות בקשות בו זמנית
+// גורם לוויקיפדיה ולוויקישיתוף להחזיר שגיאה. תור עם ארבע בקשות במקביל
+// לוקח קצת יותר זמן אבל מחזיר תוצאות במקום כלום.
+const MAX_PARALLEL = 4
+let active = 0
+const queue = []
+
+function pump() {
+  while (active < MAX_PARALLEL && queue.length) {
+    const job = queue.shift()
+    active++
+    job.fn().then(job.resolve, job.reject).finally(() => { active--; pump() })
+  }
+}
+
+function schedule(fn) {
+  return new Promise((resolve, reject) => { queue.push({ fn, resolve, reject }); pump() })
+}
+
+async function getJson(url) {
+  const res = await schedule(() => fetch(url))
+  if (!res.ok) throw new Error('HTTP ' + res.status)   // חשוב: לא בולעים שגיאת קצב
+  return res.json()
+}
+
 // שליפה לפי שם ערך מדויק. זה המסלול המהיר והוודאי: כשיש רמז wiki בספר הדגמים
 // אין צורך לנחש דרך מנוע החיפוש, ולכן גם אין סיכון להביא תמונה של דגם אחר.
 async function wikiByTitle(title) {
@@ -55,8 +80,7 @@ async function wikiByTitle(title) {
     + '?action=query&format=json&origin=*&redirects=1'
     + '&prop=pageimages&piprop=thumbnail&pithumbsize=480'
     + '&titles=' + encodeURIComponent(title)
-  const res = await fetch(api)
-  const json = await res.json()
+  const json = await getJson(api)
   const pages = Object.values(json?.query?.pages || {})
   return pages[0]?.thumbnail?.source || null
 }
@@ -80,8 +104,7 @@ async function commonsImage(brandEn, model, year) {
     + '?action=query&format=json&origin=*'
     + '&generator=search&gsrnamespace=6&gsrlimit=14&gsrsearch=' + encodeURIComponent(brandEn + ' ' + core)
     + '&prop=imageinfo&iiprop=url%7Cmime&iiurlwidth=480'
-  const res = await fetch(api)
-  const json = await res.json()
+  const json = await getJson(api)
   const pages = Object.values(json?.query?.pages || {}).sort((a, b) => (a.index ?? 9) - (b.index ?? 9))
 
   const B = brandEn.toUpperCase()
@@ -115,8 +138,7 @@ async function wikiSearch(q) {
     + '?action=query&format=json&origin=*'
     + '&prop=pageimages%7Cdescription&piprop=thumbnail&pithumbsize=480'
     + '&generator=search&gsrlimit=4&gsrsearch=' + encodeURIComponent(q)
-  const res = await fetch(api)
-  const json = await res.json()
+  const json = await getJson(api)
   return Object.values(json?.query?.pages || {}).sort((a, b) => (a.index ?? 9) - (b.index ?? 9))
 }
 
@@ -190,7 +212,9 @@ export async function fetchCarImage(v) {
       if (ok && p.thumbnail?.source) { url = p.thumbnail.source; break }
     }
   } catch {
-    url = null
+    // שגיאת רשת או הגבלת קצב. מחזירים בלי לשמור, כדי שהניסיון הבא יצליח.
+    // שמירה כאן הייתה מקבעת "אין תמונה" לדגם תקין עד לניקוי המטמון.
+    return null
   }
   cache.set(key, url)
   lsSet(key, url)
