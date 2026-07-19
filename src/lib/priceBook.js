@@ -13,6 +13,7 @@
 // לפי סקירות שוק ישראליות.
 
 import { isPriceSuspect } from './costModel'
+import { consumptionFor } from './consumptionBook'
 
 export const PRICES_UPDATED = 'יולי 2026'
 // לא פחות מ 2026 (חותמת ספר המחירים), ומתקדם אוטומטית כשהשנה מתחלפת
@@ -214,6 +215,7 @@ export function normalizeCars(rows) {
     }
 
     const suspect = !verified && isPriceSuspect({ market_price: listPrice, year })
+    const ev = isElectric(clean, rep.attrs)
     const estimated = !suspect && age > 0
     const valueNow = estimated ? round100(listPrice * depreciationFactor(age)) : listPrice
 
@@ -221,12 +223,17 @@ export function normalizeCars(rows) {
       id: rep.id,
       name: clean,
       year,
-      isEv: isElectric(clean, rep.attrs),
+      isEv: ev,
       market_price: suspect ? listPrice : valueNow,
       list_price: listPrice,
       addons_once: rep.addons_once,
       monthly_cost: rep.monthly_cost,
       attrs: rep.attrs,
+      // צריכת דלק פר דגם מנתוני WLTP. null נופל לברירת המחדל במודל העלות,
+      // ומסומן שם כ"לפי ברירת מחדל" כדי שהמשתמש יידע מה מאומת ומה לא.
+      // לחשמלי משאירים null בכוונה: שם היחידה היא קוט"ש ל 100 ק"מ ולא ליטר,
+      // וערך בליטרים היה מתפרש בטעות כצריכת חשמל.
+      consumption: ev ? null : (rep.attrs?.consumption ?? consumptionFor(clean)),
       trims: list.length,
       priceRange: prices.length > 1 ? [prices[0], prices[prices.length - 1]] : null,
       verified,
