@@ -69,7 +69,7 @@ function CarImage({ v, onClick, height = null }) {
     setImg(null)
     fetchCarImage(v).then(u => { if (on) setImg(u) })
     return () => { on = false }
-  }, [v?.name])
+  }, [v?.name, v?.year])
   if (img) return <img className="car-card-img" src={img} alt={v.name} onClick={onClick} loading="lazy" style={height ? { aspectRatio: 'auto', height } : undefined} />
   return <div className="car-card-imgless" onClick={onClick}>{v?.kind === 'moto' ? '🏍️' : '🚗'}</div>
 }
