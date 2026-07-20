@@ -48,23 +48,46 @@ const RANGE_CSS = `
 .range-track { position: absolute; top: 11px; left: 0; right: 0; height: 5px; border-radius: 3px; }
 `
 
-// טווח מחיר: שני ראשים על מסילה אחת. אפס פירושו "לא הוגבל", ולכן ניקוי
-// הסינון והחלפת סוג הרכב פשוט מאפסים. הידית העליונה שנגררת עד הקצה
-// חוזרת להיות "ללא הגבלה", כדי שדגם שיקר מתקרת המסילה לא ייעלם סתם.
+// טווח מחיר: שני ראשים על מסילה אחת, ולצידם שדות הקלדה מסונכרנים.
+// גרירה מעדכנת את השדות מיד. הקלדה מתאשרת ביציאה מהשדה או ב־Enter,
+// ולא תוך כדי, אחרת הקלדת "8" בדרך ל"80,000" הייתה מקפיצה את הסליידר.
+// אפס פירושו "לא הוגבל", ולכן ניקוי הסינון והחלפת סוג הרכב מאפסים.
+// ראש עליון שנגרר עד הקצה, או ערך מוקלד מעל התקרה, חוזרים ל"ללא הגבלה".
 function PriceRange({ lo, hi, cap, onChange }) {
   const step = 1000
   const hiEff = hi || cap
+  const [loTxt, setLoTxt] = useState(fmt(lo))
+  const [hiTxt, setHiTxt] = useState(fmt(hiEff))
+  useEffect(() => { setLoTxt(fmt(lo)); setHiTxt(fmt(hiEff)) }, [lo, hiEff])
+  const digits = s => Number(String(s).replace(/[^0-9]/g, '')) || 0
+  function commit() {
+    let l = digits(loTxt), h = digits(hiTxt)
+    if (h && h < l) { const t = l; l = h; h = t }   // טווח הפוך מתיישר במקום להעלים הכל
+    l = Math.max(0, Math.min(l, cap - step))
+    onChange(l, !h || h >= cap ? 0 : h)
+  }
+  const onKey = e => { if (e.key === 'Enter') e.target.blur() }
   const pct = x => Math.max(0, Math.min(100, (x / cap) * 100))
   // הדף כולו RTL, והמסילה נצבעת מימין: המינימום בימין כמו כיוון הקריאה
   const fill = `linear-gradient(to left, var(--color-border) ${pct(lo)}%, var(--color-primary) ${pct(lo)}%, var(--color-primary) ${pct(hiEff)}%, var(--color-border) ${pct(hiEff)}%)`
-  const label = !lo && !hi
-    ? 'כל המחירים'
-    : `${fmt(lo)} עד ${hi ? fmt(hi) + ' ₪' : 'ללא הגבלה'}`
+  // המספרים בכיוון לטיני כדי שהפסיקים יישבו נכון בתוך עמוד RTL
+  const box = { width: 86, padding: '5px 6px', fontSize: 12.5, textAlign: 'center', borderRadius: 8, direction: 'ltr' }
   return (
     <div style={{ marginTop: 10 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, marginBottom: 2 }}>
-        <span>טווח מחיר</span>
-        <span style={{ color: 'var(--color-text-muted)', fontVariantNumeric: 'tabular-nums' }}>{label}</span>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
+        <span style={{ fontSize: 12.5 }}>טווח מחיר</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5 }}>
+          <input
+            value={loTxt} inputMode="numeric" aria-label="מחיר מזערי" style={box}
+            onChange={e => setLoTxt(e.target.value)} onBlur={commit} onKeyDown={onKey}
+          />
+          <span style={{ color: 'var(--color-text-muted)' }}>עד</span>
+          <input
+            value={hiTxt} inputMode="numeric" aria-label="מחיר מרבי" style={box}
+            onChange={e => setHiTxt(e.target.value)} onBlur={commit} onKeyDown={onKey}
+          />
+          <span>₪</span>
+        </div>
       </div>
       <div className="range-wrap">
         <div className="range-track" style={{ background: fill }} />
@@ -522,7 +545,9 @@ export default function Catalog({ profile, onProfileSaved, demo = false, onReque
     return true
   })
   const withImg = rows.filter(hasVerifiedImage).length
-  const filtersOn = imgOnly || brandSel || licSel || ccMax || priceLo || priceHi
+  // חובה ערך בוליאני: שרשרת || שמסתיימת במספר מחזירה 0 כשהכל כבוי,
+  // וריאקט מצייר את ה־0 הזה על המסך בכל {filtersOn && ...}
+  const filtersOn = !!(imgOnly || brandSel || licSel || ccMax || priceLo || priceHi)
 
   if (showProgress) {
     return <GoalProgress profile={profile} onBack={() => setShowProgress(false)} />
