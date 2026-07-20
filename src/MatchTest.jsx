@@ -8,8 +8,28 @@ import { supabase } from './lib/supabase'
 import { rankCars, rankMotos } from './lib/matchModel'
 import { normalizeCars } from './lib/priceBook'
 import { normalizeMotos } from './lib/motoBook'
+import { fetchCarImage } from './lib/carImage'
 
 const fmt = n => (n == null || n === '' ? 'אין נתון' : Number(n).toLocaleString('he-IL'))
+
+// תוצאות ההתאמה האחרונות נשמרות ברמת המודול: פתיחת דגם מהתוצאות וחזרה
+// ממנו מרכיבות את הקומפוננטה מחדש, ובלי המטמון הרשימה הייתה מחושבת שוב
+// מאפס (ובמצב דמו, שלא שומר פרופיל, נעלמת לגמרי)
+let cacheKind = null
+let cacheResults = null
+
+// אותה תמונת כרטיס כמו בקטלוג: קודם המפה המאומתת, אחר כך חיפוש חי
+function ResultImage({ v, onClick }) {
+  const [img, setImg] = useState(null)
+  useEffect(() => {
+    let on = true
+    setImg(null)
+    fetchCarImage(v).then(u => { if (on) setImg(u) })
+    return () => { on = false }
+  }, [v?.name, v?.year])
+  if (img) return <img className="car-card-img" src={img} alt={v.name} onClick={onClick} loading="lazy" />
+  return <div className="car-card-imgless" onClick={onClick}>{v?.kind === 'moto' ? '🏍️' : '🚗'}</div>
+}
 
 const CAR_QUESTIONS = [
   { key: 'budgetMax', q: 'כמה בערך להשקיע בקניית הרכב?', custom: 'או סכום מדויק בשקלים',
@@ -59,7 +79,7 @@ const MOTO_QUESTIONS = [
     opts: [['תוך חצי שנה', 6], ['תוך שנה', 12], ['שנתיים ומעלה', 24]] },
 ]
 
-export default function MatchTest({ profile, onPick, onBack, demo = false, kind = 'car' }) {
+export default function MatchTest({ profile, onPick, onBack, demo = false, kind = 'car', onPrefsSaved }) {
   const isMoto = kind === 'moto'
   const QUESTIONS = isMoto ? MOTO_QUESTIONS : CAR_QUESTIONS
   const prefsCol = isMoto ? 'moto_prefs' : 'car_prefs'
@@ -68,9 +88,11 @@ export default function MatchTest({ profile, onPick, onBack, demo = false, kind 
   const [step, setStep] = useState(0)
   const [answers, setAnswers] = useState({})
   const [customVal, setCustomVal] = useState('')
-  const [results, setResults] = useState(null)
+  const [results, setResultsRaw] = useState(() => (cacheKind === kind ? cacheResults : null))
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
+
+  const setResults = r => { cacheKind = kind; cacheResults = r; setResultsRaw(r) }
 
   const userCtx = {
     birthYear: profile?.birth_year,
@@ -88,6 +110,8 @@ export default function MatchTest({ profile, onPick, onBack, demo = false, kind 
         setErr(error.message.includes(prefsCol) ? 'נראה שקטע ה SQL של ' + prefsCol + ' עוד לא הורץ בסופבייס' : error.message)
         return
       }
+      // מרעננים את הפרופיל באפליקציה, כדי שהעדפות טריות יחכו לכניסה הבאה
+      onPrefsSaved?.()
     }
     const budget = prefs.budgetMax || (isMoto ? 45000 : 200000)
     // מרחיבים את הרשת: המחיר בבסיס הנתונים הוא מחירון מקורי,
@@ -109,7 +133,8 @@ export default function MatchTest({ profile, onPick, onBack, demo = false, kind 
   }
 
   useEffect(() => {
-    if (savedPrefs) runMatch(savedPrefs, false)
+    // תוצאות מהמטמון לא מחושבות מחדש, זה מה שהופך חזרה מדגם למיידית
+    if (!results && savedPrefs) runMatch(savedPrefs, false)
   }, [])
 
   function advance(key, val) {
@@ -153,29 +178,42 @@ export default function MatchTest({ profile, onPick, onBack, demo = false, kind 
             {isMoto ? 'לא נמצאו דגמים מתאימים לתנאים האלה. שווה להרחיב את התקציב או הדרגה' : 'לא נמצאו רכבים מתאימים לתנאים האלה'}
           </div>
         )}
-        {results.map(r => (
-          <div key={r.v.id} onClick={() => onPick(r.v)}
-            style={{ padding: 12, borderBottom: '1px solid var(--color-border)', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 700 }}>
-                {r.v.name}
-                {isMoto && r.v.license && (
-                  <span style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--color-info)', border: '1px solid var(--color-info)', borderRadius: 8, padding: '1px 6px', marginInlineStart: 8 }}>
-                    {r.v.license}
-                  </span>
-                )}
+        {/* אותם כרטיסים כמו בקטלוג, עם שורת ההתאמה מעל שם הדגם */}
+        <div className="car-grid">
+          {results.map(r => {
+            const c = r.score >= 80 ? 'var(--color-primary)' : r.score >= 60 ? 'var(--color-warn)' : 'var(--color-text-muted)'
+            return (
+              <div key={r.v.id} className="car-card">
+                <ResultImage v={r.v} onClick={() => onPick(r.v)} />
+                <div className="car-card-body">
+                  <div onClick={() => onPick(r.v)} style={{ cursor: 'pointer' }}>
+                    <div style={{ fontWeight: 800, fontSize: 12.5, color: c, marginBottom: 2 }}>
+                      מתאים {r.score}% בשבילך
+                    </div>
+                    <div style={{ fontWeight: 700, fontSize: 13.5, lineHeight: 1.35, minHeight: 36 }}>{r.v.name}</div>
+                    <div style={{ fontSize: 11.5, color: 'var(--color-text-muted)' }}>
+                      שנת {r.v.year}
+                      {isMoto && r.v.license && (
+                        <span style={{ marginInlineStart: 6, color: 'var(--color-info)', border: '1px solid var(--color-info)', borderRadius: 8, padding: '0px 6px', fontSize: 10 }}>
+                          רישיון {r.v.license}
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
+                      <span style={{ fontWeight: 800, fontSize: 14.5, whiteSpace: 'nowrap' }}>{fmt(r.v.market_price)} ₪</span>
+                      <span style={{ fontSize: 11, color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>כ {fmt(r.m.total)} ₪ בחודש</span>
+                    </div>
+                    {r.reasons.length > 0 && (
+                      <div style={{ fontSize: 10.5, color: 'var(--color-text-muted)', marginTop: 4, lineHeight: 1.4 }}>
+                        {r.reasons.slice(0, 2).join(' · ')}
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
-              <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>שנת {r.v.year} · {fmt(r.v.market_price)} ₪ · כ {fmt(r.m.total)} ₪ בחודש</div>
-              <div style={{ fontSize: 11.5, color: 'var(--color-text-muted)', marginTop: 2 }}>{r.reasons.slice(0, 2).join(' · ')}</div>
-            </div>
-            <div style={{
-              fontWeight: 800, fontSize: 16, whiteSpace: 'nowrap',
-              color: r.score >= 80 ? 'var(--color-primary)' : r.score >= 60 ? 'var(--color-warn)' : 'var(--color-text-muted)',
-            }}>
-              {r.score}
-            </div>
-          </div>
-        ))}
+            )
+          })}
+        </div>
         {err && <p style={{ color: 'var(--color-danger)', marginTop: 10 }}>{err}</p>}
       </div>
     )

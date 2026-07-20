@@ -603,7 +603,10 @@ export default function Catalog({ profile, onProfileSaved, demo = false, onReque
         demo={demo}
         kind={kind}
         onBack={() => setMode('list')}
-        onPick={v => { setMode('list'); setSelected(v) }}
+        // נשארים במצב מבחן: פתיחת דגם מהתוצאות ולחיצה על חזרה מחזירות
+        // אל התוצאות ולא אל הקטלוג. selected נבדק לפני mode ולכן הדגם מוצג
+        onPick={v => setSelected(v)}
+        onPrefsSaved={onProfileSaved}
       />
     )
   }
