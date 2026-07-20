@@ -183,6 +183,11 @@ export function motoDepreciationFactor(age) {
 
 const round100 = x => Math.round(x / 100) * 100
 
+// האם הדגם קטנוע (אוטומטי) או אופנוע הילוכים. אין שדה כזה בנתונים, ולכן
+// ההבחנה לפי שמות הדגמים בקטלוג: כל סאן יאנג וּוספה הם קטנועים, ומהיצרנים
+// האחרים אלה שמות סדרות הקטנועים המוכרות. משמש את מבחן ההתאמה בלבד.
+export const isScooter = name => /PCX|FORZA|ADV|NMAX|XMAX|TRICITY|TMAX|RAYZR|JET|JOYMAX|JOYRIDE|CRUISYM|MIO|DUKE|SYMPHONY|ADX|MAXSYM|PRIMAVERA|GTS/i.test(String(name || ''))
+
 // נרמול שורות אופנועים מה־DB לכרטיסים. שורה אחת לכל דגם+שנה (אין רמות גימור).
 export function normalizeMotos(rows) {
   const out = []
@@ -215,6 +220,7 @@ export function normalizeMotos(rows) {
       attrs: r.attrs,
       cc,
       kw,
+      isScooter: isScooter(clean),
       hp: kw != null ? Math.round(kw * HP_PER_KW * 10) / 10 : (a.hp ?? null),
       license: licenseFor(cc, kw, entry?.lic ?? a.license),
       consumption: entry?.cons ?? a.consumption ?? null,

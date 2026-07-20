@@ -9,6 +9,10 @@ const API = 'https://data.gov.il/api/3/action/datastore_search'
 export const REGISTRY_RESOURCE = '053cea08-09bc-40ec-8f7a-156f0677aff3'
 // נתוני דגם מורחבים (WLTP): בטיחות, כוח סוס, כריות אוויר ועוד
 export const WLTP_RESOURCE = '142afde2-6228-49f9-8a29-9b6c3a0cbe40'
+// כלי רכב דו גלגליים (אופנועים וקטנועים). אומת 20.7.2026: כ־188 אלף רשומות.
+// שים לב: במאגר הזה אין שדה תוקף טסט, והדגם (degem_nm) הוא לעיתים קוד יצרן
+// ולא שם שיווקי, ולכן ההצלבה מול הקטלוג שלנו היא מיטב מאמץ בלבד.
+export const MOTO_REGISTRY_RESOURCE = 'bf9df4e2-d90d-4c0a-a400-19e15af8e95f'
 
 async function search(resource, filters, limit = 1) {
   const url = API
@@ -32,6 +36,16 @@ export function normalizePlate(input) {
 export async function fetchByPlate(plate) {
   const recs = await search(REGISTRY_RESOURCE, { mispar_rechev: plate }, 1)
   return recs[0] || null
+}
+
+// חיפוש לוחית בשני המאגרים: קודם רכב פרטי, ואם אין, דו גלגלי.
+// מחזיר גם את סוג הכלי כדי שהמסך יידע איזה שדות להציג.
+export async function fetchAnyByPlate(plate) {
+  const car = await fetchByPlate(plate)
+  if (car) return { rec: car, vkind: 'car' }
+  const recs = await search(MOTO_REGISTRY_RESOURCE, { mispar_rechev: plate }, 1)
+  if (recs[0]) return { rec: recs[0], vkind: 'moto' }
+  return { rec: null, vkind: null }
 }
 
 // נתוני דגם מורחבים לפי הרשומה מהמאגר. לא לכל דגם יש רשומת WLTP,

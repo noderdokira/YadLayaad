@@ -70,3 +70,86 @@ export function rankCars(list, prefs, user, topN = 12) {
     .sort((a, b) => b.score - a.score || (a.v.market_price ?? 0) - (b.v.market_price ?? 0))
     .slice(0, topN)
 }
+
+// ---------------- דו גלגלי ----------------
+// דרגת הרישיון היא מסנן קשיח ולא רכיב ציון: אין טעם להמליץ על אופנוע
+// שאסור לרוכב לרכוב עליו. 'any' פירושו עוד אין רישיון, ואז מציגים הכל
+// והדרגה מופיעה על הכרטיס ממילא.
+const LICENSE_ALLOWS = {
+  A2: ['A2'],
+  A1: ['A2', 'A1'],
+  A: ['A2', 'A1', 'A'],
+  any: ['A2', 'A1', 'A'],
+}
+
+const MOTO_W = { price: 0.3, monthly: 0.25, feasible: 0.25, fit: 0.2 }
+
+export function scoreMoto(v, prefs = {}, user = {}) {
+  const price = v.market_price ?? 0
+  const m = estimateM(v, { birthYear: user.birthYear, licenseYear: user.licenseYear }, { includeEstimates: true })
+  const parts = []
+  const reasons = []
+
+  if (prefs.budgetMax > 0) {
+    let s
+    if (price <= prefs.budgetMax * 0.8) { s = 1; reasons.push('מתחת לתקציב בנוחות') }
+    else if (price <= prefs.budgetMax) { s = 0.75; reasons.push('בתוך התקציב') }
+    else { s = Math.max(0, 0.45 - (price - prefs.budgetMax) / prefs.budgetMax); reasons.push('מעל התקציב') }
+    parts.push([MOTO_W.price, s])
+  }
+
+  if (prefs.mCeiling > 0) {
+    let s
+    if (m.total <= prefs.mCeiling * 0.85) { s = 1; reasons.push('עלות חודשית נוחה') }
+    else if (m.total <= prefs.mCeiling) { s = 0.7; reasons.push('עלות חודשית על הגבול') }
+    else { s = Math.max(0, 0.4 - (m.total - prefs.mCeiling) / prefs.mCeiling); reasons.push('עלות חודשית גבוהה מהיעד') }
+    parts.push([MOTO_W.monthly, s])
+  }
+
+  let months = null
+  if (user.monthlyCapacity > 0) {
+    const target = Math.max(0, price - (user.currentSavings ?? 0))
+    months = Math.ceil(target / user.monthlyCapacity)
+    const horizon = prefs.horizonMonths || 24
+    let s
+    if (months <= horizon) { s = 1; reasons.push(`בהישג יד בכ ${months} חודשים`) }
+    else { s = Math.max(0, 1 - (months - horizon) / horizon); reasons.push(`דורש כ ${months} חודשי חיסכון`) }
+    parts.push([MOTO_W.feasible, s])
+  }
+
+  // התאמה לאופי הרכיבה: קטנוע מול הילוכים, עיר מול בין עירוני, וניסיון
+  let fit = 1
+  const scooter = v.isScooter
+  if (prefs.style === 'scooter' && !scooter) { fit -= 0.6 }
+  else if (prefs.style === 'geared' && scooter) { fit -= 0.6 }
+  else if (prefs.style && prefs.style !== 'any') { reasons.push(scooter ? 'קטנוע אוטומטי' : 'אופנוע הילוכים') }
+
+  const cc = v.cc ?? 0
+  if (prefs.usage === 'urban') {
+    if (cc > 0 && cc <= 330) reasons.push('זריז ונוח לעיר')
+    else if (cc > 500) { fit -= 0.3; reasons.push('גדול מהנדרש לעיר') }
+  } else if (prefs.usage === 'road') {
+    if (cc >= 300) reasons.push('יציב לבין עירוני')
+    else if (cc > 0) { fit -= 0.35; reasons.push('קטן לנסיעות בין עירוניות') }
+  }
+
+  if (prefs.exp === 'none') {
+    if (v.kw != null && v.kw > 35) { fit -= 0.5; reasons.push('חזק מדי לרכיבה ראשונה') }
+    else if (v.kw != null) reasons.push('ידידותי להתחלה')
+  }
+  parts.push([MOTO_W.fit, Math.max(0, Math.min(1, fit))])
+
+  const wSum = parts.reduce((a, p) => a + p[0], 0) || 1
+  const score = Math.round(100 * parts.reduce((a, p) => a + p[0] * p[1], 0) / wSum)
+  return { score, m, months, reasons }
+}
+
+export function rankMotos(list, prefs, user, topN = 12) {
+  const allow = LICENSE_ALLOWS[prefs.license] || LICENSE_ALLOWS.any
+  return (list || [])
+    .filter(v => !v.suspect)
+    .filter(v => !v.license || allow.includes(v.license))
+    .map(v => ({ v, ...scoreMoto(v, prefs, user) }))
+    .sort((a, b) => b.score - a.score || (a.v.market_price ?? 0) - (b.v.market_price ?? 0))
+    .slice(0, topN)
+}
