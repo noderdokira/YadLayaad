@@ -5,7 +5,14 @@ import { savingsLevel } from './lib/priceBook'
 const fmt = n => (n == null || n === '' ? 'אין נתון' : Number(n).toLocaleString('he-IL'))
 
 export default function Compare({ cars, profile, onBack, onPick }) {
-  const user = { birthYear: profile?.birth_year, licenseYear: profile?.license_year }
+  // אותה הנחת קילומטראז' כמו בשאר המסכים: התשובה משאלון ההתאמה אם ניתנה,
+  // אחרת ברירת המחדל של המודל. בלי זה ההשוואה סתרה את דף הדגם
+  const kmMonthly = profile?.car_prefs?.kmMonthly
+  const user = {
+    birthYear: profile?.birth_year,
+    licenseYear: profile?.license_year,
+    kmPerYear: kmMonthly > 0 && (cars || [])[0]?.kind !== 'moto' ? kmMonthly * 12 : undefined,
+  }
   const cap = profile?.monthly_capacity
   const savings = profile?.current_savings ?? 0
 

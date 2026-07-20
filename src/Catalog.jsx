@@ -12,6 +12,14 @@ import { GoalBanner, GoalSetup, GoalProgress } from './Goal'
 
 const fmt = n => (n == null || n === '' ? 'אין נתון' : Number(n).toLocaleString('he-IL'))
 
+// מקור אמת אחד לקילומטראז': התשובה משאלון ההתאמה, אם ניתנה. בלעדיה כל
+// מסך חישב עם הנחת ברירת המחדל וכרטיס ההתאמה עם התשובה האמיתית, ואותו
+// רכב הציג שתי עלויות חודשיות שונות במרחק שתי לחיצות.
+function userKmPerYear(profile, kind) {
+  const kmMonthly = kind === 'moto' ? null : profile?.car_prefs?.kmMonthly
+  return kmMonthly > 0 ? kmMonthly * 12 : undefined
+}
+
 // יצרן = החלק העברי שלפני האותיות הלטיניות בשם הדגם
 function brandOf(name) {
   const m = String(name || '').match(/^[^A-Za-z0-9]+/)
@@ -184,7 +192,7 @@ function Detail({ v, profile, onBack, onProfileSaved, onStartGoal, compareSel = 
   const hasDriver = profile?.birth_year != null
   const m = estimateM(
     v,
-    { birthYear: profile?.birth_year, licenseYear: profile?.license_year },
+    { birthYear: profile?.birth_year, licenseYear: profile?.license_year, kmPerYear: userKmPerYear(profile, v?.kind) },
     { includeEstimates: true }
   )
 
@@ -457,7 +465,7 @@ export default function Catalog({ profile, onProfileSaved, demo = false, onReque
     if (sb === 'price_desc') arr.sort((x, y) => (y.market_price ?? 0) - (x.market_price ?? 0))
     else if (sb === 'price_asc') arr.sort((x, y) => (x.market_price ?? 0) - (y.market_price ?? 0))
     else if (sb === 'm_asc') {
-      const u = { birthYear: profile?.birth_year, licenseYear: profile?.license_year }
+      const u = { birthYear: profile?.birth_year, licenseYear: profile?.license_year, kmPerYear: userKmPerYear(profile, kind) }
       arr.sort((x, y) =>
         estimateM(x, u, { includeEstimates: true }).total - estimateM(y, u, { includeEstimates: true }).total
       )
