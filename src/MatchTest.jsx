@@ -37,12 +37,22 @@ const MOTO_QUESTIONS = [
   // הבחירה כאן מסננת לדרגה הזו בלבד: מי שבחר A1 לא יקבל קטנועי A2 זולים
   { key: 'license', q: 'לאיזו דרגת רישיון לחפש?',
     opts: [['A2 · עד 125 סמ"ק', 'A2'], ['A1 · עד 35 קילוואט', 'A1'], ['A · ללא הגבלה', 'A'], ['עוד אין רישיון, להציג הכל', 'any']] },
+  // גם הנפח מסנן קשיח, מאותה סיבה כמו הדרגה: זו כוונת קנייה
+  { key: 'ccRange', q: 'איזה נפח מנוע?',
+    opts: [['עד 125 סמ"ק', [0, 125]], ['126 עד 350', [126, 350]], ['351 עד 600', [351, 600]], ['מעל 600', [601, 9999]], ['לא משנה לי', 0]] },
   { key: 'style', q: 'קטנוע או הילוכים?',
     opts: [['קטנוע אוטומטי', 'scooter'], ['אופנוע הילוכים', 'geared'], ['לא משנה לי', 'any']] },
   { key: 'usage', q: 'איפה בעיקר הנסיעות?',
     opts: [['בעיר', 'urban'], ['בין עירוני', 'road'], ['גם וגם', 'mixed']] },
   { key: 'exp', q: 'כמה ניסיון רכיבה יש לך?',
     opts: [['אין עדיין, זה הראשון', 'none'], ['עד שנתיים', 'some'], ['יותר משנתיים', 'lots']] },
+  // ABS מובטח מעל 125 סמ"ק בתקנה האירופית. בקרת אחיזה מסומנת בספר רק
+  // ממפרט יבואן מאומת, ולכן דגם בלי סימון מקבל הסתייגות ולא פסילה
+  { key: 'tech', q: 'כמה חשובה בטיחות אלקטרונית?',
+    opts: [['ABS זה מספיק', 'abs'], ['רוצה גם בקרת אחיזה', 'tc'], ['לא קריטי לי', 'any']] },
+  // מחירי שנתונים קודמים בקטלוג הם שווי מוערך, שרלוונטי רק לקניית יד שנייה
+  { key: 'newness', q: 'חדש מהיבואן או יד שנייה?',
+    opts: [['רק חדש מהיבואן', 'new'], ['גם יד שנייה, להציג הכל', 'used_ok']] },
   { key: 'mCeiling', q: 'איזו עלות חודשית נוחה לך?',
     opts: [['עד 400 בחודש', 400], ['עד 700 בחודש', 700], ['עד 1,100 בחודש', 1100], ['בלי הגבלה', 0]] },
   { key: 'horizonMonths', q: 'מתי הוא כבר אמור להיות שלך?',
@@ -174,7 +184,14 @@ export default function MatchTest({ profile, onPick, onBack, demo = false, kind 
   const cur = QUESTIONS[step]
   return (
     <div className="page-wrap">
-      <button onClick={onBack} style={{ marginBottom: 14, padding: '6px 10px' }}>חזרה לקטלוג</button>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+        <button onClick={onBack} style={{ padding: '6px 10px' }}>חזרה לקטלוג</button>
+        {step > 0 && (
+          <button onClick={() => { setStep(s => s - 1); setErr(''); setCustomVal('') }} style={{ padding: '6px 10px' }}>
+            → אחורה
+          </button>
+        )}
+      </div>
       <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 6 }}>שאלה {step + 1} מתוך {QUESTIONS.length}</div>
       <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>{cur.q}</div>
       <div style={{ fontSize: 12.5, color: 'var(--color-text-muted)', marginBottom: 16 }}>
