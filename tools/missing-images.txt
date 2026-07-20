@@ -1,64 +1,34 @@
-דגמים בלי תמונה, נוצר 2026-07-19
+דגמים בלי תמונה, נוצר 2026-07-20
 
-אאודי A3 40 TFSIE
-אאודי A3 SB PHEV
-אאודי A3 SEDAN 40
-אאודי A5 CABRIO
-אאודי A5 CABRIOLLET
-אאודי A5 SEDAN
-אאודי A5 SEDAN 40
-אאודי A5 SEDAN 50
-אאודי A5 SEDAN 50 E-H
-אאודי A5 SEDAN 55
-אאודי A5 SEDAN E-HYBR
-אאודי A6 SB ETRON
-אאודי A6 SEDAN
-אאודי A6 SEDAN 40
-אאודי A6 SEDAN 50 HYB
-אאודי A6 SEDAN 55 HYB
-אאודי A6 SPORTBACK 50
-אאודי A6 SPORTBACK 55
-אאודי A6LIM220KWTFSIE
-אאודי A7 TFSI-E
-אאודי A8 LONG
-אאודי A8 LONG 60 TFSI
-אאודי A8L SECURITY
-אאודי ETRON GT
-אאודי Q3 SB 35
-אאודי Q4 35 ETRON
-אאודי Q4 40 ETRON
-אאודי Q4 45 SPORTBACK
-אאודי Q4 50 ETRON
-אאודי Q4 ETRON
-אאודי Q4 SB 35 E TRON
-אאודי Q4 SB 40 E TRON
-אאודי Q4 SB 50 E TRON
-אאודי Q4 SB E-TRON
-אאודי Q4 SBACK 50 ETR
-אאודי Q4 SBACK35
-אאודי Q4 SBACK35 ETRO
-אאודי Q4 SBACK35ETRON
-אאודי Q4 SBACK40 ETRO
-אאודי Q4 SBACK40ETRON
-אאודי Q4 SBACK50 ETRO
-אאודי Q4 SBACK50ETRON
-אאודי Q4 SBACK55ETRON
-אאודי Q6 45 ETRON
-אאודי Q6 50 E-TRON
-אאודי Q6 50 ETRON
-אאודי Q6 55 ETRON
-אאודי Q6 ETRON 50
-אאודי Q6 ETRON 55
-אאודי Q6 ETRON QUATRO
-אאודי Q6 SB 55
-אאודי Q6 SB 55 E-TRON
-אאודי Q6 SB 55 ETRON
-אאודי Q6 SB E-TRON
-אאודי Q6 SPORTBACK 45
-אאודי Q6 SPORTBACK 50
-אאודי Q6 SUV ETRON QU
-אאודי RS ETRON GT
-אאודי RS3 LIMOUSINE
+אאודי בלגיה E TRON 55 ADV
+אאודי בלגיה E TRON S SB
+אאודי בלגיה ETRON 50
+אאודי בלגיה ETRON 55 ADVANC
+אאודי בלגיה ETRON SB
+אאודי בלגיה ETRON SBACK 50
+אאודי בלגיה ETRON SBACK 55
+אאודי בלגיה ETRON SPORTBACK
+אאודי בלגיה Q8 50E-TRON SB
+אאודי בלגיה Q8 ETROSBACK QU
+אאודי בלגיה Q8 SB E-TRON 50
+אאודי בלגיה Q8 SB ETRON
+אאודי בלגיה Q8 SBACK50 ETRO
+אאודי בלגיה Q8 SBACK50ETRON
+אאודי בלגיה Q8 SBACK55ETRON
+אאודי בלגיה Q8 SPORTBACK 50
+אאודי בלגיה SQ8 ETRON
+אאודי בלגיה SQ8 SB E-TRON
+אאודי בלגיה SQ8 SB ETRON
+אאודי הונגריה Q3 SB 35
+אאודי הונגריה Q3 SB 40
+אאודי הונגריה Q3 SB 45
+אאודי הונגריה Q3 SB 45E
+אאודי הונגריה Q3 SB S LINE 40
+אאודי הונגריה Q3 SB TFSIE
+אאודי הונגריה Q3 SBACK ETRON
+אאודי הונגריה Q3 SBECK ETRON
+אאודי הונגריה QA
+אאודי סלובקיה Q7 50TDI
 אודי מכסיקו AUDI Q5 SB (יצרן לא מזוהה)
 אודי מכסיקו MEGANE E-TECH (יצרן לא מזוהה)
 אודי מכסיקו Q5 (יצרן לא מזוהה)
@@ -642,6 +612,14 @@
 יודו סין JUNEYAO JY AIR (יצרן לא מזוהה)
 יודו סין JY AIR (יצרן לא מזוהה)
 יודו סין YUDO 3 (יצרן לא מזוהה)
+ימאהה MT-10 SP
+ימאהה RAYZR 125
+ימאהה TRACER 7
+ימאהה TRACER 7 35KW
+ימאהה TRACER 7 Y-AMT
+ימאהה TRICITY 300
+ימאהה XMAX 125
+ימאהה XMAX 125 TECH MAX
 לוטוס_אנגליה EMIRA (יצרן לא מזוהה)
 לינק אנד קו LYNK AND CO 01 (יצרן לא מזוהה)
 לינק אנד קו LYNK CO 01 (יצרן לא מזוהה)
@@ -744,6 +722,16 @@
 ניאו רכב סין ES8 (יצרן לא מזוהה)
 ניאו רכב סין ET5 (יצרן לא מזוהה)
 ניאו רכב סין ET7 (יצרן לא מזוהה)
+סאן יאנג JET 14 EVO 125
+סאן יאנג JET 14 EVO 200
+סאן יאנג JOYMAX Z+ 125
+סאן יאנג JOYMAX Z+ 250
+סאן יאנג JOYRIDE 125
+סאן יאנג JOYRIDE 200
+סאן יאנג MAXSYM 400 GT
+סאן יאנג MAXSYM TL 508
+סאן יאנג MIO 125
+סאן יאנג SYMPHONY SR 125
 סקיוול סין ET5 (יצרן לא מזוהה)
 סרס סין SERES (יצרן לא מזוהה)
 סרס סין SERES 3 (יצרן לא מזוהה)
@@ -873,8 +861,6 @@
 פורשה סלובקיה CAYENNE TURBOEH (יצרן לא מזוהה)
 פורתינג סין FRIDAY (יצרן לא מזוהה)
 פורתינג סין S7 (יצרן לא מזוהה)
-פיג'ו ספרד 2008
-פיג'ו צרפת 2008
 פרארי 12CILINDRI SPI (יצרן לא מזוהה)
 פרארי 296 GTB (יצרן לא מזוהה)
 פרארי 296 GTS (יצרן לא מזוהה)
@@ -921,6 +907,15 @@
 קארמה ארה''ב GS-6 (יצרן לא מזוהה)
 קארמה ארה''ב GS-6S (יצרן לא מזוהה)
 קוואן סין CAVAN (יצרן לא מזוהה)
+קוואסאקי ELIMINATOR 500
+קוואסאקי ELIMINATOR 500 SE
+קוואסאקי KLE500 SE
+קוואסאקי VERSYS 1100 S
+קוואסאקי VULCAN 650 S
+קוואסאקי Z1100
+קוואסאקי Z1100 SE
+קוואסאקי Z500 SE
+קוואסאקי Z900 SE
 קופרה הונגריה TERRAMAR (יצרן לא מזוהה)
 קופרה סין TAVASCAN (יצרן לא מזוהה)
 קופרה ספרד CUPRA (יצרן לא מזוהה)
