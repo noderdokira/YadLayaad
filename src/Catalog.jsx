@@ -2,10 +2,9 @@
 import { useEffect, useState } from 'react'
 import { supabase } from './lib/supabase'
 import { estimateM } from './lib/costModel'
-import { fetchCarImage } from './lib/carImage'
+import { fetchCarImage, verifiedImage } from './lib/carImage'
 import { normalizeCars, priceTag, usedSearchUrl, priceListSearchUrl, savingsLevel, PRICES_UPDATED } from './lib/priceBook'
 import { normalizeMotos } from './lib/motoBook'
-import IMAGE_MAP from './lib/imageMap.json'
 import MatchTest from './MatchTest'
 import Compare from './Compare'
 import CarCheck from './CarCheck'
@@ -21,9 +20,73 @@ function brandOf(name) {
 
 // "תמונה מאומתת" = הדגם נמצא במפה שנבנתה על ידי tools/fetchImages.mjs ואומתה
 // מול שם הקובץ בוויקישיתוף. חיפוש חי עשוי למצוא עוד תמונות, אבל רק מה שבמפה
-// עבר בדיקה, ולכן רק הוא נחשב מאומת בסינון הזה.
-function hasVerifiedImage(v) {
-  return !!IMAGE_MAP[(v.kind === 'moto' ? 'm|' : '') + v.name + '|' + (v.year ?? '')]
+// עבר בדיקה, ולכן רק הוא נחשב מאומת בסינון הזה. הבדיקה עצמה יושבת
+// ב־carImage.js, שמגשר בין השמות המנוקים בכרטיסים למפתחות הגולמיים במפה.
+const hasVerifiedImage = v => !!verifiedImage(v)
+
+// עיצוב הסליידר הדו ראשי של טווח המחיר. שני input מונחים זה על זה,
+// המסילה שקופה ורק הידיות תופסות עכבר. הצבע נמשך ממשתני ערכת הנושא.
+const RANGE_CSS = `
+.range-wrap { position: relative; height: 26px; }
+.range-wrap input[type=range] {
+  position: absolute; inset: 0; width: 100%; margin: 0;
+  -webkit-appearance: none; appearance: none; background: none; pointer-events: none;
+}
+.range-wrap input[type=range]::-webkit-slider-runnable-track { background: none; }
+.range-wrap input[type=range]::-moz-range-track { background: none; }
+.range-wrap input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; pointer-events: auto;
+  width: 20px; height: 20px; margin-top: 3px; border-radius: 50%;
+  background: var(--color-primary); border: 2.5px solid var(--color-surface);
+  box-shadow: 0 1px 4px rgba(0,0,0,.3); cursor: grab;
+}
+.range-wrap input[type=range]::-moz-range-thumb {
+  pointer-events: auto; width: 16px; height: 16px; border-radius: 50%;
+  background: var(--color-primary); border: 2.5px solid var(--color-surface);
+  box-shadow: 0 1px 4px rgba(0,0,0,.3); cursor: grab;
+}
+.range-track { position: absolute; top: 11px; left: 0; right: 0; height: 5px; border-radius: 3px; }
+`
+
+// טווח מחיר: שני ראשים על מסילה אחת. אפס פירושו "לא הוגבל", ולכן ניקוי
+// הסינון והחלפת סוג הרכב פשוט מאפסים. הידית העליונה שנגררת עד הקצה
+// חוזרת להיות "ללא הגבלה", כדי שדגם שיקר מתקרת המסילה לא ייעלם סתם.
+function PriceRange({ lo, hi, cap, onChange }) {
+  const step = 1000
+  const hiEff = hi || cap
+  const pct = x => Math.max(0, Math.min(100, (x / cap) * 100))
+  // הדף כולו RTL, והמסילה נצבעת מימין: המינימום בימין כמו כיוון הקריאה
+  const fill = `linear-gradient(to left, var(--color-border) ${pct(lo)}%, var(--color-primary) ${pct(lo)}%, var(--color-primary) ${pct(hiEff)}%, var(--color-border) ${pct(hiEff)}%)`
+  const label = !lo && !hi
+    ? 'כל המחירים'
+    : `${fmt(lo)} עד ${hi ? fmt(hi) + ' ₪' : 'ללא הגבלה'}`
+  return (
+    <div style={{ marginTop: 10 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, marginBottom: 2 }}>
+        <span>טווח מחיר</span>
+        <span style={{ color: 'var(--color-text-muted)', fontVariantNumeric: 'tabular-nums' }}>{label}</span>
+      </div>
+      <div className="range-wrap">
+        <div className="range-track" style={{ background: fill }} />
+        <input
+          type="range" min={0} max={cap} step={step} value={hiEff}
+          aria-label="מחיר מרבי"
+          onChange={e => {
+            const x = Math.max(Number(e.target.value), lo + step)
+            onChange(lo, x >= cap ? 0 : x)
+          }}
+        />
+        <input
+          type="range" min={0} max={cap} step={step} value={lo}
+          aria-label="מחיר מזערי"
+          // כששני הראשים נערמים בקצה העליון, התחתון מקבל עדיפות עכבר,
+          // אחרת אי אפשר להפריד אותם בחזרה
+          style={lo > cap - step * 10 ? { zIndex: 3 } : undefined}
+          onChange={e => onChange(Math.min(Number(e.target.value), hiEff - step), hi)}
+        />
+      </div>
+    </div>
+  )
 }
 
 const PRODUCT_COLS = 'id, name, year, market_price, addons_once, monthly_cost, attrs'
@@ -332,7 +395,8 @@ export default function Catalog({ profile, onProfileSaved, demo = false, onReque
   const [brandSel, setBrandSel] = useState('')
   const [licSel, setLicSel] = useState('')
   const [ccMax, setCcMax] = useState(0)
-  const [priceMax, setPriceMax] = useState(0)
+  const [priceLo, setPriceLo] = useState(0)
+  const [priceHi, setPriceHi] = useState(0)
   const [compareSel, setCompareSel] = useState([])
   const [compareView, setCompareView] = useState(false)
   const [darkMode, setDarkMode] = useState(() => {
@@ -400,7 +464,7 @@ export default function Catalog({ profile, onProfileSaved, demo = false, onReque
     if (k === kind) return
     setKind(k)
     setCompareSel([])
-    setBrandSel(''); setLicSel(''); setCcMax(0); setPriceMax(0)
+    setBrandSel(''); setLicSel(''); setCcMax(0); setPriceLo(0); setPriceHi(0)
     search(query, yearMin, sortBy, favOnly, favIds, k)
   }
 
@@ -444,16 +508,21 @@ export default function Catalog({ profile, onProfileSaved, demo = false, onReque
   // סינון בבחירה ולא בהקלדה. הערכים נגזרים מהתוצאות שכבר נטענו,
   // ולכן לא מוצע למשתמש מסנן שלא יחזיר כלום.
   const brands = [...new Set(rows.map(v => brandOf(v.name)).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'he'))
+  // תקרת הסליידר נגזרת מהתוצאות שנטענו ומעוגלת לחמשת אלפים, כך שהמסילה
+  // מתאימה את עצמה: עד כמאה אלף באופנועים, יותר ברכבים
+  const priceCap = Math.max(20000, Math.ceil(Math.max(0, ...rows.map(v => v.market_price ?? 0)) / 5000) * 5000)
   const visible = rows.filter(v => {
     if (imgOnly && !hasVerifiedImage(v)) return false
     if (brandSel && brandOf(v.name) !== brandSel) return false
     if (licSel && v.license !== licSel) return false
     if (ccMax && !(v.cc != null && v.cc <= ccMax)) return false
-    if (priceMax && !((v.market_price ?? 0) <= priceMax)) return false
+    const price = v.market_price ?? 0
+    if (priceLo && price < priceLo) return false
+    if (priceHi && price > priceHi) return false
     return true
   })
   const withImg = rows.filter(hasVerifiedImage).length
-  const filtersOn = imgOnly || brandSel || licSel || ccMax || priceMax
+  const filtersOn = imgOnly || brandSel || licSel || ccMax || priceLo || priceHi
 
   if (showProgress) {
     return <GoalProgress profile={profile} onBack={() => setShowProgress(false)} />
@@ -616,15 +685,6 @@ export default function Catalog({ profile, onProfileSaved, demo = false, onReque
             </select>
           )}
 
-          <select value={priceMax} onChange={e => setPriceMax(Number(e.target.value))} style={{ padding: 7, fontSize: 12.5 }}>
-            <option value={0}>כל המחירים</option>
-            <option value={15000}>עד 15,000 ₪</option>
-            <option value={25000}>עד 25,000 ₪</option>
-            <option value={40000}>עד 40,000 ₪</option>
-            <option value={60000}>עד 60,000 ₪</option>
-            <option value={100000}>עד 100,000 ₪</option>
-          </select>
-
           <label style={{ fontSize: 12.5, display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', whiteSpace: 'nowrap' }}>
             <input type="checkbox" checked={imgOnly} onChange={e => setImgOnly(e.target.checked)} />
             רק עם תמונה מאומתת ({withImg})
@@ -632,13 +692,19 @@ export default function Catalog({ profile, onProfileSaved, demo = false, onReque
 
           {filtersOn && (
             <button
-              onClick={() => { setBrandSel(''); setLicSel(''); setCcMax(0); setPriceMax(0); setImgOnly(false) }}
+              onClick={() => { setBrandSel(''); setLicSel(''); setCcMax(0); setPriceLo(0); setPriceHi(0); setImgOnly(false) }}
               style={{ padding: '5px 10px', fontSize: 12, borderRadius: 8 }}
             >
               ניקוי סינון
             </button>
           )}
         </div>
+
+        <style>{RANGE_CSS}</style>
+        <PriceRange
+          lo={priceLo} hi={priceHi} cap={priceCap}
+          onChange={(lo, hi) => { setPriceLo(lo); setPriceHi(hi) }}
+        />
 
         {filtersOn && (
           <div style={{ fontSize: 11.5, color: 'var(--color-text-muted)', marginTop: 8 }}>
