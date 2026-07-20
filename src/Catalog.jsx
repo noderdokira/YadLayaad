@@ -601,6 +601,7 @@ export default function Catalog({ profile, onProfileSaved, demo = false, onReque
       <MatchTest
         profile={profile}
         demo={demo}
+        kind={kind}
         onBack={() => setMode('list')}
         onPick={v => { setMode('list'); setSelected(v) }}
       />
@@ -643,20 +644,24 @@ export default function Catalog({ profile, onProfileSaved, demo = false, onReque
         </button>
       </div>
       {/* כפתור ההתאמה האישית הוא הפעולה המרכזית במסך, ולכן מלא בצבע
-          הראשי וגדול משאר הכפתורים, ולא עוד אופציה ברשימה */}
-      {kind === 'car' && <button
+          הראשי וגדול משאר הכפתורים, ולא עוד אופציה ברשימה.
+          שני הכפתורים קיימים בשני הקטלוגים: המבחן עם שאלון נפרד לכל סוג,
+          והבדיקה מחפשת את הלוחית גם במאגר הרכב וגם במאגר הדו גלגלי */}
+      <button
         onClick={() => setMode('test')}
         className="btn-primary"
         style={{ width: '100%', padding: 15, marginBottom: 8, borderRadius: 12, fontWeight: 800, fontSize: 16.5 }}
       >
-        {profile?.car_prefs ? 'תוצאות ההתאמה שלי' : '✨ מבחן התאמה אישית, איזה רכב מתאים לי'}
-      </button>}
-      {kind === 'car' && <button
+        {kind === 'moto'
+          ? (profile?.moto_prefs ? 'תוצאות ההתאמה שלי' : '✨ מבחן התאמה אישית, איזה אופנוע מתאים לי')
+          : (profile?.car_prefs ? 'תוצאות ההתאמה שלי' : '✨ מבחן התאמה אישית, איזה רכב מתאים לי')}
+      </button>
+      <button
         onClick={() => setCarCheck(true)}
         style={{ width: '100%', padding: 12, marginBottom: 12, borderRadius: 10, border: '1px solid var(--color-info)', background: 'var(--color-surface)', color: 'var(--color-text)', fontWeight: 700, fontSize: 14 }}
       >
-        🔎 בדיקת רכב לפי מספר רישוי, לפני שקונים יד שנייה
-      </button>}
+        🔎 בדיקה לפי מספר רישוי, לפני שקונים יד שנייה
+      </button>
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
         <select

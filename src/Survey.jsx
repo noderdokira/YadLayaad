@@ -43,17 +43,35 @@ const PIG_MSGS = ['החזירון לומד עליך...', 'החזירון רוש�
 function LearningPig({ step }) {
   return (
     <div style={{ marginTop: 26, textAlign: 'center' }} aria-hidden="true">
-      <style>{'@keyframes pigFloat { 0%, 100% { transform: translateY(0) } 50% { transform: translateY(-5px) } }'}</style>
-      <svg width="76" height="62" viewBox="0 0 120 97" style={{ animation: 'pigFloat 2.6s ease-in-out infinite' }}>
+      <style>{'@keyframes pigFloat { 0%, 100% { transform: translateY(0) } 50% { transform: translateY(-4px) } }'}</style>
+      {/* חזירון לומד: משקפיים עגולים, אישונים שמביטים מטה אל ספר פתוח.
+          הספר בתוך אותו svg כדי שהריחוף לא ינתק את המבט מהעמוד */}
+      <svg width="82" height="90" viewBox="0 0 120 132" style={{ animation: 'pigFloat 2.6s ease-in-out infinite' }}>
         <path d="M 30,28 C 24,16 30,8 40,7 C 45,13 45,22 40,28 Z" fill="#f38fb6" stroke="#46342e" strokeWidth="4" strokeLinejoin="round" />
         <path d="M 90,28 C 96,16 90,8 80,7 C 75,13 75,22 80,28 Z" fill="#f38fb6" stroke="#46342e" strokeWidth="4" strokeLinejoin="round" />
         <ellipse cx="60" cy="54" rx="42" ry="36" fill="#f9a9c7" stroke="#46342e" strokeWidth="4.5" />
-        <circle cx="44" cy="44" r="4" fill="#46342e" />
-        <circle cx="76" cy="44" r="4" fill="#46342e" />
-        <ellipse cx="60" cy="60" rx="16" ry="11" fill="#fbc7db" stroke="#46342e" strokeWidth="4" />
-        <ellipse cx="55" cy="60" rx="2" ry="3.6" fill="#46342e" />
-        <ellipse cx="65" cy="60" rx="2" ry="3.6" fill="#46342e" />
-        <path d="M 48,76 Q 60,82 72,76" fill="none" stroke="#46342e" strokeWidth="3.5" strokeLinecap="round" />
+        {/* משקפיים: עדשות, גשר, וזרועות אל שולי הראש */}
+        <circle cx="44" cy="45" r="8.5" fill="none" stroke="#46342e" strokeWidth="3" />
+        <circle cx="76" cy="45" r="8.5" fill="none" stroke="#46342e" strokeWidth="3" />
+        <path d="M 52.5,44 Q 60,40.5 67.5,44" fill="none" stroke="#46342e" strokeWidth="3" strokeLinecap="round" />
+        <path d="M 35.5,44 L 24,41" stroke="#46342e" strokeWidth="3" strokeLinecap="round" />
+        <path d="M 84.5,44 L 96,41" stroke="#46342e" strokeWidth="3" strokeLinecap="round" />
+        {/* אישונים בתחתית העדשות: המבט מופנה מטה, אל הספר */}
+        <ellipse cx="44" cy="48.6" rx="2.9" ry="3.4" fill="#46342e" />
+        <ellipse cx="76" cy="48.6" rx="2.9" ry="3.4" fill="#46342e" />
+        <ellipse cx="60" cy="62" rx="15" ry="10.5" fill="#fbc7db" stroke="#46342e" strokeWidth="4" />
+        <ellipse cx="55" cy="62" rx="2" ry="3.4" fill="#46342e" />
+        <ellipse cx="65" cy="62" rx="2" ry="3.4" fill="#46342e" />
+        <path d="M 52,77 Q 60,81 68,77" fill="none" stroke="#46342e" strokeWidth="3.5" strokeLinecap="round" />
+        {/* ספר פתוח מתחת לפנים */}
+        <path d="M 24,103 Q 43,95 58,101 L 58,124 Q 43,117 24,125 Z" fill="#fdf3e3" stroke="#46342e" strokeWidth="3.5" strokeLinejoin="round" />
+        <path d="M 96,103 Q 77,95 62,101 L 62,124 Q 77,117 96,125 Z" fill="#fdf3e3" stroke="#46342e" strokeWidth="3.5" strokeLinejoin="round" />
+        <path d="M 60,101 L 60,124" stroke="#46342e" strokeWidth="3" />
+        {/* שורות טקסט בעמודים */}
+        <path d="M 30,107 Q 44,101 54,105" fill="none" stroke="#c9b39a" strokeWidth="2" strokeLinecap="round" />
+        <path d="M 30,113 Q 44,107 54,111" fill="none" stroke="#c9b39a" strokeWidth="2" strokeLinecap="round" />
+        <path d="M 90,107 Q 76,101 66,105" fill="none" stroke="#c9b39a" strokeWidth="2" strokeLinecap="round" />
+        <path d="M 90,113 Q 76,107 66,111" fill="none" stroke="#c9b39a" strokeWidth="2" strokeLinecap="round" />
       </svg>
       <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 4 }}>
         {PIG_MSGS[step % PIG_MSGS.length]}

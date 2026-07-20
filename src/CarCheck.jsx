@@ -4,8 +4,9 @@
 // תוקף טסט ונתוני בטיחות, ומצליבים מול השווי המוערך בקטלוג שלנו.
 import { useState } from 'react'
 import { supabase } from './lib/supabase'
-import { normalizePlate, fetchByPlate, fetchModelSpec } from './lib/govCar'
+import { normalizePlate, fetchAnyByPlate, fetchModelSpec } from './lib/govCar'
 import { normalizeCars, cleanName, priceListSearchUrl } from './lib/priceBook'
+import { normalizeMotos } from './lib/motoBook'
 
 const fmt = n => (n == null || n === '' ? 'אין נתון' : Number(n).toLocaleString('he-IL'))
 
@@ -64,6 +65,7 @@ export default function CarCheck({ onBack, onPick }) {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [rec, setRec] = useState(null)
+  const [vkind, setVkind] = useState(null)
   const [spec, setSpec] = useState(null)
   const [catalogCar, setCatalogCar] = useState(null)
   const [searched, setSearched] = useState(false)
@@ -86,27 +88,53 @@ export default function CarCheck({ onBack, onPick }) {
     }
   }
 
+  // הצלבה מול קטלוג הדו גלגלי: degem_nm הוא לפעמים שם שיווקי ("NINJA 500")
+  // ולפעמים קוד יצרן ("CMM1"). מנסים התאמת שם, ובלעדיה אין הצלבה, שזה
+  // מצב תקין. עדיף כלום מאשר דגם שגוי.
+  async function findMotoInCatalog(r) {
+    const degem = String(r.degem_nm || '').trim()
+    if (degem.length < 3 || !/[A-Za-z]/.test(degem)) return null
+    try {
+      const { data } = await supabase
+        .from('products')
+        .select('id, name, year, market_price, addons_once, monthly_cost, attrs')
+        .eq('kind', 'moto')
+        .eq('year', r.shnat_yitzur)
+        .ilike('name', '%' + degem + '%')
+        .limit(10)
+      const n = normalizeMotos(data || [])
+      return n.length ? n[0] : null
+    } catch {
+      return null
+    }
+  }
+
   async function check() {
     const plate = normalizePlate(plateInput)
     if (plate == null) { setErr('הזן מספר רישוי תקין, 7 או 8 ספרות'); return }
-    setBusy(true); setErr(''); setRec(null); setSpec(null); setCatalogCar(null); setSearched(false)
+    setBusy(true); setErr(''); setRec(null); setVkind(null); setSpec(null); setCatalogCar(null); setSearched(false)
     try {
-      const r = await fetchByPlate(plate)
+      const { rec: r, vkind: k } = await fetchAnyByPlate(plate)
       setRec(r)
+      setVkind(k)
       setSearched(true)
-      if (r) {
+      if (r && k === 'car') {
         const [s, c] = await Promise.all([fetchModelSpec(r), findInCatalog(r)])
         setSpec(s)
         setCatalogCar(c)
+      } else if (r && k === 'moto') {
+        // למאגר הדו גלגלי אין רשומות WLTP, ולכן רק הצלבה מול הקטלוג
+        setCatalogCar(await findMotoInCatalog(r))
       }
     } catch {
-      setErr('לא הצלחנו לגשת למאגר משרד התחבורה. בדוק את החיבור ונסה שוב')
+      setErr('אין כרגע גישה למאגר משרד התחבורה. שווה לבדוק את החיבור ולנסות שוב')
     }
     setBusy(false)
   }
 
+  const isMoto = vkind === 'moto'
   const own = rec ? OWNERSHIP_INFO[rec.baalut] : null
-  const test = rec ? testStatus(rec.tokef_dt) : null
+  const test = rec && !isMoto ? testStatus(rec.tokef_dt) : null
   const title = rec ? (cleanName(rec.tozeret_nm || '') + ' ' + (rec.kinuy_mishari || rec.degem_nm || '')).trim() : ''
   const adsUrl = rec
     ? 'https://www.google.com/search?q=' + encodeURIComponent('יד2 ' + (rec.kinuy_mishari || '') + ' ' + (rec.shnat_yitzur || ''))
@@ -115,10 +143,10 @@ export default function CarCheck({ onBack, onPick }) {
   return (
     <div className="page-wrap page-wrap--mid">
       <button onClick={onBack} style={{ marginBottom: 14, padding: '6px 10px' }}>חזרה</button>
-      <div className="page-title" style={{ marginBottom: 4 }}>🔎 בדיקת רכב לפי מספר רישוי</div>
+      <div className="page-title" style={{ marginBottom: 4 }}>🔎 בדיקה לפי מספר רישוי</div>
       <div style={{ fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 14, lineHeight: 1.5 }}>
-        מצאת מודעה ביד שנייה? הזן את מספר הרישוי וקבל את נתוני האמת מהמאגר הרשמי של משרד התחבורה:
-        שנתון, דגם, סוג בעלות וטסט. חינם וללא הגבלה.
+        מצאת מודעה ביד שנייה? מספר הרישוי מחזיר את נתוני האמת מהמאגרים הרשמיים של משרד
+        התחבורה, גם לרכב וגם לאופנוע: שנתון, דגם וסוג בעלות. חינם וללא הגבלה.
       </div>
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
@@ -139,8 +167,8 @@ export default function CarCheck({ onBack, onPick }) {
 
       {searched && !rec && !err && (
         <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, padding: 12, fontSize: 13, lineHeight: 1.6 }}>
-          המספר לא נמצא במאגר הרכב הפעיל. זה קורה כשהרכב ירד מהכביש, כשהוא אופנוע או רכב כבד,
-          או כשיש טעות הקלדה. בדוק את המספר ונסה שוב.
+          המספר לא נמצא, לא במאגר הרכב הפרטי ולא במאגר הדו גלגלי. זה קורה כשהכלי ירד
+          מהכביש, כשהוא רכב כבד, או כשיש טעות הקלדה. שווה לבדוק את המספר שוב.
         </div>
       )}
 
@@ -148,10 +176,10 @@ export default function CarCheck({ onBack, onPick }) {
         <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 12, padding: 14, boxShadow: 'var(--shadow)' }}>
           <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 2 }}>{title}</div>
           <div style={{ fontSize: 12.5, color: 'var(--color-text-muted)', marginBottom: 10 }}>
-            {rec.ramat_gimur ? 'רמת גימור ' + rec.ramat_gimur + ' · ' : ''}שנת {rec.shnat_yitzur}
+            {isMoto ? (rec.sug_rechev_nm || 'דו גלגלי') + ' · ' : (rec.ramat_gimur ? 'רמת גימור ' + rec.ramat_gimur + ' · ' : '')}שנת {rec.shnat_yitzur}
           </div>
 
-          <Row label="עלה לכביש">{rec.moed_aliya_lakvish || 'אין נתון'}</Row>
+          {rec.moed_aliya_lakvish && <Row label="עלה לכביש">{rec.moed_aliya_lakvish}</Row>}
           <Row label="בעלות נוכחית">
             {own ? <Badge kind={own.kind}>{rec.baalut}</Badge> : (rec.baalut || 'אין נתון')}
           </Row>
@@ -165,12 +193,22 @@ export default function CarCheck({ onBack, onPick }) {
               {own.note}
             </div>
           )}
-          <Row label="תוקף טסט">
-            {test && <Badge kind={test.kind}>{test.txt}</Badge>}
-            <span>{heDate(rec.tokef_dt)}</span>
-          </Row>
-          <Row label="טסט אחרון">{heDate(rec.mivchan_acharon_dt)}</Row>
-          <Row label="צבע">{rec.tzeva_rechev || 'אין נתון'}</Row>
+          {isMoto && rec.mkoriut_nm === 'יבוא אישי' && (
+            <div style={{ fontSize: 12, color: 'var(--color-warn)', padding: '6px 0', borderBottom: '1px solid var(--color-border)', lineHeight: 1.5 }}>
+              ⚠️ יבוא אישי: שווה לוודא זמינות חלפים ושירות אצל היבואן הרשמי לפני קנייה
+            </div>
+          )}
+          {!isMoto && (
+            <Row label="תוקף טסט">
+              {test && <Badge kind={test.kind}>{test.txt}</Badge>}
+              <span>{heDate(rec.tokef_dt)}</span>
+            </Row>
+          )}
+          {!isMoto && <Row label="טסט אחרון">{heDate(rec.mivchan_acharon_dt)}</Row>}
+          {!isMoto && <Row label="צבע">{rec.tzeva_rechev || 'אין נתון'}</Row>}
+          {isMoto && rec.nefach_manoa > 0 && <Row label="נפח מנוע">{fmt(rec.nefach_manoa)} סמ"ק</Row>}
+          {isMoto && rec.hespek > 0 && <Row label="הספק">{fmt(rec.hespek)} כ"ס</Row>}
+          {isMoto && rec.mishkal_kolel > 0 && <Row label="משקל כולל">{fmt(rec.mishkal_kolel)} ק"ג</Row>}
           <Row label="דלק">{rec.sug_delek_nm || 'אין נתון'}</Row>
           {rec.ramat_eivzur_betihuty != null && (
             <Row label="רמת אבזור בטיחותי">{rec.ramat_eivzur_betihuty} מתוך 8</Row>
@@ -182,6 +220,11 @@ export default function CarCheck({ onBack, onPick }) {
           <Row label="מספר שלדה">
             <span style={{ fontSize: 11.5, direction: 'ltr' }}>{rec.misgeret || 'אין נתון'}</span>
           </Row>
+          {isMoto && (
+            <div style={{ fontSize: 11.5, color: 'var(--color-text-muted)', paddingTop: 8, lineHeight: 1.5 }}>
+              במאגר הדו גלגלי של משרד התחבורה אין נתוני תוקף טסט, ולכן הם לא מוצגים כאן
+            </div>
+          )}
 
           {catalogCar && catalogCar.market_price > 0 && (
             <div style={{ marginTop: 12, background: 'var(--color-surface-2)', borderRadius: 10, padding: 10, fontSize: 13, lineHeight: 1.55 }}>
