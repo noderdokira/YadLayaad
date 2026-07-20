@@ -2,13 +2,28 @@ name: Refresh image map
 
 on:
   schedule:
-    # כל יום ראשון ב-03:00 UTC. ויקישיתוף מתעדכן כל הזמן, ודגמי השנתון
+    # כל יום ראשון ב 03:00 UTC. ויקישיתוף מתעדכן כל הזמן, ודגמי השנתון
     # החדש מקבלים תמונות לאורך השנה.
     - cron: '0 3 * * 0'
   workflow_dispatch:
+    inputs:
+      budget:
+        description: 'כמה דגמים לחפש בריצה הזו'
+        required: false
+        default: '600'
+      gap_ms:
+        description: 'השהיה מזערית בין בקשות, במילישניות. להעלות אם נחסמנו'
+        required: false
+        default: '300'
 
 permissions:
   contents: write
+
+# ריצה אחת בכל רגע נתון. שתי ריצות במקביל גם מתנגשות בפוש
+# וגם מכפילות את קצב הבקשות לוויקימדיה, וזה בדיוק מה שחסם אותנו.
+concurrency:
+  group: image-map
+  cancel-in-progress: false
 
 jobs:
   refresh:
@@ -20,21 +35,37 @@ jobs:
         with:
           node-version: '20'
 
+      # continue-on-error כדי שההתקדמות תישמר גם כשוויקימדיה חוסמת.
+      # הריצה עדיין תסומן באדום, בשלב האחרון.
       - name: Build image map
+        id: build
+        continue-on-error: true
         env:
           SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          IMAGE_BUDGET: ${{ inputs.budget || '600' }}
+          IMAGE_GAP_MS: ${{ inputs.gap_ms || '300' }}
         run: node tools/fetchImages.mjs
 
+      # if: always() הוא העיקר. ריצה שנחסמה באמצע מצאה תמונות עד לרגע
+      # החסימה, ובלי הקומיט הזה כל מה שהיא מצאה נזרק והריצה הבאה
+      # מתחילה מאפס. זה מה שהופך את הסוכן למצטבר.
       - name: Commit if changed
+        if: always()
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          if git diff --quiet -- src/lib/imageMap.json tools/missing-images.txt; then
+          git add -- src/lib/imageMap.json tools/imageState.json tools/missing-images.txt || true
+          if git diff --cached --quiet; then
             echo "אין שינוי במפת התמונות"
           else
             n=$(node -e "console.log(Object.keys(require('./src/lib/imageMap.json')).length)")
-            git add src/lib/imageMap.json tools/missing-images.txt
             git commit -m "Refresh image map ($n images)"
             git push
           fi
+
+      - name: Fail if the builder aborted
+        if: steps.build.outcome == 'failure'
+        run: |
+          echo "::error::בניית מפת התמונות נעצרה. ההתקדמות נשמרה, ראה את הלוג של Build image map."
+          exit 1
