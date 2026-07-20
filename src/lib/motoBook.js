@@ -15,7 +15,9 @@
 //
 // המבנה מקביל ל־priceBook של הרכבים: מחיר חדש מאומת, ושווי נוכחי לפי ירידת ערך.
 
-import { cleanName, PRICES_UPDATED } from './priceBook'
+// הסיומת המפורשת חיונית: tools/motoCheck.mjs רץ בנוד ישירות, ונוד לא
+// משלים סיומות בייבוא ESM כמו שווייט עושה. בלעדיה השומר לא רץ בכלל.
+import { cleanName, PRICES_UPDATED } from './priceBook.js'
 
 const CURRENT_YEAR = Math.max(2026, new Date().getFullYear())
 
@@ -45,6 +47,17 @@ export const MOTO_BOOK = [
   { b: 'הונדה', m: /^CB750/, base: 58500, cc: 755, kw: 67.5, cons: 4.3, since: 2023, wiki: null },
   { b: 'הונדה', m: /^CBR650R/, base: 71400, cc: 649, kw: 70, cons: 4.9, since: 2019, wiki: 'Honda CBR650R' },
   { b: 'הונדה', m: /^XL750/, base: 77900, cc: 755, kw: 67.5, cons: 4.4, since: 2023, wiki: 'Honda Transalp' },
+  // משפחת ה־500, נוספה 20.7.2026 מהמחירון שבתוקף באתר היבואן (hondabike.co.il,
+  // עמודי הדגמים עודכנו מרץ עד יוני 2026). 47 כ"ס במחירון הם 35.0 קילוואט לפי
+  // אישור הטיפוס האירופי, בדיוק על הגבול ולכן A1, אותו תקדים כמו TMAX 560.
+  // הריבל מוצהר 45.5 כ"ס, שהם 33.5 קילוואט. הצריכה חושבה מק"מ לליטר שבמפרט.
+  { b: 'הונדה', m: /^CBR500R/, base: 47400, cc: 471, kw: 35.0, cons: 3.5, since: 2019, wiki: 'Honda CBR500R' },
+  // NX500 הוא שמו החדש של CB500X מאז 2024, והערך בוויקיפדיה עדיין בשם הישן
+  { b: 'הונדה', m: /^NX500/, base: 49900, cc: 471, kw: 35.0, cons: 3.6, since: 2024, wiki: 'Honda CB500X' },
+  { b: 'הונדה', m: /^CB500\s?HORNET/, base: 45400, cc: 471, kw: 35.0, cons: 3.5, since: 2024, wiki: null },
+  { b: 'הונדה', m: /^CMX500/, base: 48450, cc: 471, kw: 33.5, cons: 3.6, since: 2020, wiki: null },
+  // CMX500 REBEL SE נמכר גם הוא, אבל עמוד המחירון שלו לא נטען באתר היבואן
+  // ולכן אין לו מחיר מאומת. לא מוסיפים דגם בלי מחיר.
 
   // ---------------- ימאהה, קטנועים ----------------
   { b: 'ימאהה', m: /^NMAX/, base: 21985, cc: 125, kw: 9.0, cons: 2.2, since: 2019, wiki: 'Yamaha NMAX' },
