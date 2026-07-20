@@ -7,6 +7,33 @@
 // אין קריאת רשת, אין הגבלת קצב, והתמונה מופיעה מיד. חיפוש חי נשאר רק לדגמים
 // שנוספו לקטלוג אחרי הריצה האחרונה של הסקריפט.
 import IMAGE_MAP from './imageMap.json'
+import { cleanName } from './priceBook'
+
+// מפתחות המפה נבנים מהשם הגולמי בדאטהבייס ("הונדה בריטניה CIVIC"), אבל
+// normalizeCars מגישה לכרטיסים שם מנוקה ממדינת הייצור ("הונדה CIVIC").
+// בלי גישור, 86% מהמפה בלתי נראים: 2,632 מתוך 3,062 מפתחות לא נמצאים לעולם.
+// לכן המפה מנורמלת פעם אחת בטעינה לאותם מפתחות שהכרטיסים באמת שואלים עליהם.
+// שני שמות גולמיים שמתנקים לאותו שם (אותו דגם משתי ארצות ייצור) הם אותה
+// תמונה לכל דבר, הראשון נשאר.
+const CLEAN_MAP = (() => {
+  const out = {}
+  for (const [k, url] of Object.entries(IMAGE_MAP)) {
+    const moto = k.startsWith('m|')
+    const body = moto ? k.slice(2) : k
+    const i = body.lastIndexOf('|')
+    if (i < 0) continue
+    const ck = (moto ? 'm|' : '') + cleanName(body.slice(0, i)) + '|' + body.slice(i + 1)
+    if (!(ck in out)) out[ck] = url
+  }
+  return out
+})()
+
+// תמונה מאומתת מהמפה השבועית, או null. גם המסנן "רק עם תמונה מאומתת"
+// בקטלוג עובר מכאן, כדי שהספירה שם והתמונה בכרטיס יסכימו תמיד זה עם זה.
+export function verifiedImage(v) {
+  if (!v?.name) return null
+  return CLEAN_MAP[(v.kind === 'moto' ? 'm|' : '') + v.name + '|' + (v.year ?? '')] || null
+}
 
 const BRANDS = {
   'טויוטה': 'Toyota', 'קיה': 'Kia', 'יונדאי': 'Hyundai', 'שברולט': 'Chevrolet',
@@ -160,7 +187,7 @@ export async function fetchCarImage(v) {
   const key = (isMoto ? 'm|' : '') + name + '|' + (v?.year ?? '')
   if (cache.has(key)) return cache.get(key)
 
-  const mapped = IMAGE_MAP[key]
+  const mapped = verifiedImage(v)
   if (mapped) { cache.set(key, mapped); return mapped }
 
   const stored = lsGet(key)
