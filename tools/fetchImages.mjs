@@ -43,6 +43,11 @@ const BUDGET = Number(process.env.IMAGE_BUDGET || 600)
 const TTL_HIT  = 180   // דגם שיש לו תמונה
 const TTL_NONE = 60    // דגם שחיפשנו ולא נמצא. ויקישיתוף מתעדכן, שווה לנסות שוב
 
+// גרסת לוגיקת החיפוש. כשמשפרים את החיפוש עצמו, "אין תמונה" שנקבע בגרסה
+// ישנה הוא ממצא מיושן וצריך להיבדק מחדש, בלי לחכות 60 יום. תמונה שנמצאה
+// נשארת תמונה. להעלות את המספר בכל שינוי בכללי ההתאמה.
+const SEARCH_VERSION = 2
+
 // קצב. ויקימדיה חסמה אותנו בארבע בקשות במקביל בלי השהיה.
 // ניתן לכוונון מהסביבה כדי לאפשר ריצת השלמה ידנית איטית או מהירה יותר.
 const CONCURRENCY = Number(process.env.IMAGE_CONCURRENCY || 2)
@@ -73,8 +78,31 @@ const BRANDS = {
   // דו גלגלי
   'וספה': 'Vespa', 'קוואסאקי': 'Kawasaki', 'רויאל אנפילד': 'Royal Enfield',
   'סאן יאנג': 'SYM', 'ימאהה': 'Yamaha',
+  // ---- הרחבה 20.7.2026 ----
+  // נגזר מרשימת "יצרן לא מזוהה" האמיתית של הריצה הראשונה: 915 דגמים נפלו
+  // על היצרנים האלה ועל שמות מדינה דבוקים. נמדד: 839 מתוכם חוזרים לזיהוי.
+  'ב מ וו': 'BMW', 'בי ווי די': 'BYD', 'פורשה': 'Porsche', 'קרייזלר': 'Chrysler',
+  'מזדה': 'Mazda', 'אודי': 'Audi', 'וולבו': 'Volvo', 'פרארי': 'Ferrari',
+  'קאדילאק': 'Cadillac', 'מקסוס': 'Maxus', 'מזארטי': 'Maserati', 'בנטלי': 'Bentley',
+  'אסטון מרטין': 'Aston Martin', 'קופרה': 'Cupra', 'ניאו': 'NIO', 'יגואר': 'Jaguar',
+  "דודג'": 'Dodge', 'דודג': 'Dodge', "ג'י.אמ.סי": 'GMC', 'לינק אנד קו': 'Lynk & Co',
+  'רולס-רויס': 'Rolls-Royce', 'רולס רויס': 'Rolls-Royce', 'ארקפוקס': 'Arcfox',
+  'למבורגיני': 'Lamborghini', 'באייק': 'BAIC', 'די.אס': 'DS', 'פוטון': 'Foton',
+  'סרס': 'Seres', 'לנסיה': 'Lancia', 'אינפיניטי': 'Infiniti', 'פולסטאר': 'Polestar',
+  'פולסטר': 'Polestar', 'הבל': 'Haval', 'האבל': 'Haval', 'גרייט וול': 'Great Wall',
+  'טאטא': 'Tata', 'לוטוס': 'Lotus', 'מקלארן': 'McLaren', 'אלפין': 'Alpine',
+  'אברת': 'Abarth', 'רם': 'Ram', 'לינקולן': 'Lincoln', 'ביואיק': 'Buick',
 }
 const BRAND_KEYS = Object.keys(BRANDS).sort((a, b) => b.length - a.length)
+
+// שמות היצרן במאגר משרד התחבורה בנויים "יצרן מדינה" ("פורשה גרמניה",
+// "אודי מכסיקו"). המדינה איננה חלק משם הדגם ונגזרת לפני החיפוש.
+const COUNTRIES = new Set(['גרמניה', 'ארה"ב', 'ארהב', 'ארצות', 'הברית', 'מכסיקו', 'מקסיקו',
+  'יפן', 'בלגיה', 'שוודיה', 'שבדיה', 'סין', 'איטליה', 'סלובקיה', 'בריטניה', 'אנגליה',
+  'קנדה', 'ספרד', 'צרפת', 'אוסטריה', 'הונגריה', 'קוריאה', 'דרום', 'טורקיה', 'צכיה',
+  "צ'כיה", 'פולין', 'הודו', 'תאילנד', 'רומניה', 'מרוקו', 'ברזיל', 'הולנד', 'סלובניה',
+  'אוזבקיסטן', 'רוסיה', 'אינדונזיה', 'מלזיה', 'טיוואן', 'טייוואן', 'ויאטנם', 'וייטנאם',
+  'פורטוגל', 'שוויץ', 'שווייץ', 'אירלנד', 'פינלנד', 'ארגנטינה', 'אוסטרליה', 'סינגפור'])
 
 const sleep = ms => new Promise(r => setTimeout(r, ms))
 const today = () => new Date().toISOString().slice(0, 10)
@@ -131,14 +159,22 @@ async function wikiJson(url) {
 const stripQualifiers = m => m.toUpperCase()
   .replace(/\b20\d\d\b/g, '').replace(/\b\d+\s?KW\b/g, '').replace(/\s+/g, ' ').trim()
 
-// כללי ההתאמה:
+// ריכוך לניסיון שני: קודי גימור, מנוע והנעה שכמעט אף פעם לא מופיעים בשמות
+// קבצים בוויקישיתוף. "CIVIC 5D 1.0" נכשל במעבר הראשון כי אין קובץ עם
+// "5D" ו"1.0" בשם, אבל "CIVIC" לבדו מחזיר את התמונה הנכונה. מספרי דגם
+// אמיתיים (500, 125, X5) נשארים, כדי לא לקבל אלימינייטור 125 במקום 500.
+const softenModel = core => core
+  .replace(/\b\d\.\d\b/g, '')                       // נפח מנוע: 1.0, 1.5, 2.0
+  .replace(/\b\d{2}[DIE]\b/g, '')                   // קודי מנוע: 25D, 40I, 45E
+  .replace(/\b[3-5]D\b/g, '')                       // מרכב: 3D, 4D, 5D
+  .replace(/\b(XDRIVE|SDRIVE|4X4|4WD|AWD|TSI|TFSIE?|TDI|DSG|CRDI|DCI|HDI|MHEV|GDI|EHYBRID|PHEV|SB|HB)\b/g, '')
+  .replace(/\s+/g, ' ').trim()
+
+// חיפוש אחד מול ויקישיתוף, עם כללי ההתאמה:
 //   שם היצרן חייב להופיע בשם הקובץ
 //   כל מילות הדגם חייבות להופיע
 //   כל מספר בשם הדגם חייב להופיע, אחרת מקבלים אלימינייטור 125 במקום 500
-// מחזיר את כל המועמדים. בחירת השנתון נעשית אחר כך, בלי בקשה נוספת.
-async function findCandidates(brandEn, model) {
-  const core = stripQualifiers(model)
-  if (!brandEn || !core) return []
+async function searchOnce(brandEn, core) {
   const api = 'https://commons.wikimedia.org/w/api.php'
     + '?action=query&format=json&generator=search&gsrnamespace=6&gsrlimit=14'
     + '&gsrsearch=' + encodeURIComponent(brandEn + ' ' + core)
@@ -167,6 +203,19 @@ async function findCandidates(brandEn, model) {
   return out
 }
 
+// מחזיר את כל המועמדים. בחירת השנתון נעשית אחר כך, בלי בקשה נוספת.
+// שני מעברים: קודם השם המלא, ואם אין כלום, גרסה מרוככת בלי קודי גימור.
+// המעבר השני עולה בקשה נוספת, ולכן הוא רק כשהראשון חוזר ריק.
+async function findCandidates(brandEn, model) {
+  const core = stripQualifiers(model)
+  if (!brandEn || !core) return []
+  const first = await searchOnce(brandEn, core)
+  if (first.length) return first
+  const soft = softenModel(core)
+  if (!soft || soft === core) return []
+  return searchOnce(brandEn, soft)
+}
+
 // מתוך מועמדים של דגם אחד, הקובץ שהכי קרוב לשנתון המבוקש
 function pickForYear(cands, year) {
   if (!cands.length) return null
@@ -180,7 +229,15 @@ function pickForYear(cands, year) {
 function split(name) {
   const he = BRAND_KEYS.find(k => name.startsWith(k))
   if (!he) return null
-  const latin = (name.slice(he.length).match(/[A-Za-z0-9][A-Za-z0-9 .\-]*/g) || []).join(' ').trim()
+  let rest = name.slice(he.length).trim()
+  // גזירת שם המדינה, עד שתי מילים ("דרום קוריאה", "ארצות הברית").
+  // ההשוואה בלי גרשיים, כדי ש'ארה"ב' ייתפס גם כשהוא כתוב 'ארהב'
+  for (let i = 0; i < 2; i++) {
+    const w = rest.split(/\s+/)[0]
+    if (w && (COUNTRIES.has(w) || COUNTRIES.has(w.replace(/["']/g, '')))) rest = rest.slice(w.length).trim()
+    else break
+  }
+  const latin = (rest.match(/[A-Za-z0-9][A-Za-z0-9 .\-]*/g) || []).join(' ').trim()
   return latin ? { brandEn: BRANDS[he], model: latin } : null
 }
 
@@ -249,7 +306,9 @@ for (const [id, e] of all) {
   if (!parts) { unknownBrand.push(e.name); continue }
   const st = state[id]
   const ttl = st?.r === 'hit' ? TTL_HIT : TTL_NONE
-  if (st && daysSince(st.t) < ttl) { fresh++; continue }
+  // "אין תמונה" מגרסת חיפוש ישנה נבדק מחדש מיד. "יש תמונה" תקף תמיד
+  const stale = st && st.r !== 'hit' && (st.v ?? 1) < SEARCH_VERSION
+  if (st && !stale && daysSince(st.t) < ttl) { fresh++; continue }
   queue.push({ id, ...e, ...parts })
 }
 
@@ -276,10 +335,10 @@ await Promise.all(Array.from({ length: CONCURRENCY }, async () => {
           if (best) map[(item.kind === 'moto' ? 'm|' : '') + item.name + '|' + y] = best.url
         }
         hit++
-        state[item.id] = { r: 'hit', t: today() }
+        state[item.id] = { r: 'hit', t: today(), v: SEARCH_VERSION }
       } else {
         none++
-        state[item.id] = { r: 'none', t: today() }
+        state[item.id] = { r: 'none', t: today(), v: SEARCH_VERSION }
       }
       consecutive = 0
     } catch (e) {
