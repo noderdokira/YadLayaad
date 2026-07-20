@@ -4,6 +4,13 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  # קומיט של סוכן התמונות נדחף עם GITHUB_TOKEN, וגיטהאב בכוונה לא מפעיל
+  # זרימות מדחיפות כאלה, נגד לולאות אינסופיות. בלי הטריגר הזה המפה
+  # מתעדכנת ב main אבל האתר החי לא מקבל אותה לעולם.
+  workflow_run:
+    workflows: ["Refresh image map"]
+    types: [completed]
+    branches: [main]
 
 permissions:
   contents: write
