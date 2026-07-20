@@ -139,6 +139,17 @@ export function scoreMoto(v, prefs = {}, user = {}) {
     if (v.kw != null && v.kw > 35) { fit -= 0.5; reasons.push('חזק מדי לרכיבה ראשונה') }
     else if (v.kw != null) reasons.push('ידידותי להתחלה')
   }
+
+  // בטיחות אלקטרונית: ABS ודאי מעל 125 סמ"ק (תקנה אירופית 168/2013).
+  // בקרת אחיזה ידועה רק לדגמים שסומנו מול מפרט יבואן, ולכן חוסר סימון
+  // הוא הסתייגות ולא פסילה: ייתכן שיש והספר פשוט עוד לא יודע.
+  if (prefs.tech === 'abs') {
+    if (v.abs === true) reasons.push('עם ABS')
+    else { fit -= 0.35; reasons.push('ABS לא מובטח בדגם הזה') }
+  } else if (prefs.tech === 'tc') {
+    if (v.tc === true) reasons.push('עם ABS ובקרת אחיזה')
+    else { fit -= 0.4; reasons.push('בקרת אחיזה לא מאומתת לדגם') }
+  }
   parts.push([MOTO_W.fit, Math.max(0, Math.min(1, fit))])
 
   const wSum = parts.reduce((a, p) => a + p[0], 0) || 1
@@ -148,9 +159,16 @@ export function scoreMoto(v, prefs = {}, user = {}) {
 
 export function rankMotos(list, prefs, user, topN = 12) {
   const allow = LICENSE_ALLOWS[prefs.license] || LICENSE_ALLOWS.any
+  const cy = new Date().getFullYear()
+  const cc = Array.isArray(prefs.ccRange) ? prefs.ccRange : null
   return (list || [])
     .filter(v => !v.suspect)
     .filter(v => !v.license || allow.includes(v.license))
+    // נפח מנוע: מסנן קשיח כמו הדרגה, כוונת קנייה ולא העדפה רכה
+    .filter(v => !cc || (v.cc != null && v.cc >= cc[0] && v.cc <= cc[1]))
+    // "רק חדש מהיבואן": שנתון נוכחי בלבד. מחירי שנתונים קודמים הם שווי
+    // מוערך ליד שנייה ולא רלוונטיים למי שקונה חדש
+    .filter(v => prefs.newness !== 'new' || v.year >= cy - 1)
     .map(v => ({ v, ...scoreMoto(v, prefs, user) }))
     .sort((a, b) => b.score - a.score || (a.v.market_price ?? 0) - (b.v.market_price ?? 0))
     .slice(0, topN)

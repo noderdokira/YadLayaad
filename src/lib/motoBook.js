@@ -51,11 +51,13 @@ export const MOTO_BOOK = [
   // עמודי הדגמים עודכנו מרץ עד יוני 2026). 47 כ"ס במחירון הם 35.0 קילוואט לפי
   // אישור הטיפוס האירופי, בדיוק על הגבול ולכן A1, אותו תקדים כמו TMAX 560.
   // הריבל מוצהר 45.5 כ"ס, שהם 33.5 קילוואט. הצריכה חושבה מק"מ לליטר שבמפרט.
-  { b: 'הונדה', m: /^CBR500R/, base: 47400, cc: 471, kw: 35.0, cons: 3.5, since: 2019, wiki: 'Honda CBR500R' },
+  // דגלי abs ו tc מסומנים רק כשהם מופיעים במפורש במפרט של היבואן.
+  // הריבל, לפי עמוד היבואן, עם ABS אבל בלי בקרת מומנט, וזה לא סימון חסר.
+  { b: 'הונדה', m: /^CBR500R/, base: 47400, cc: 471, kw: 35.0, cons: 3.5, since: 2019, wiki: 'Honda CBR500R', abs: true, tc: true },
   // NX500 הוא שמו החדש של CB500X מאז 2024, והערך בוויקיפדיה עדיין בשם הישן
-  { b: 'הונדה', m: /^NX500/, base: 49900, cc: 471, kw: 35.0, cons: 3.6, since: 2024, wiki: 'Honda CB500X' },
-  { b: 'הונדה', m: /^CB500\s?HORNET/, base: 45400, cc: 471, kw: 35.0, cons: 3.5, since: 2024, wiki: null },
-  { b: 'הונדה', m: /^CMX500/, base: 48450, cc: 471, kw: 33.5, cons: 3.6, since: 2020, wiki: null },
+  { b: 'הונדה', m: /^NX500/, base: 49900, cc: 471, kw: 35.0, cons: 3.6, since: 2024, wiki: 'Honda CB500X', abs: true, tc: true },
+  { b: 'הונדה', m: /^CB500\s?HORNET/, base: 45400, cc: 471, kw: 35.0, cons: 3.5, since: 2024, wiki: null, abs: true, tc: true },
+  { b: 'הונדה', m: /^CMX500/, base: 48450, cc: 471, kw: 33.5, cons: 3.6, since: 2020, wiki: null, abs: true },
   // CMX500 REBEL SE נמכר גם הוא, אבל עמוד המחירון שלו לא נטען באתר היבואן
   // ולכן אין לו מחיר מאומת. לא מוסיפים דגם בלי מחיר.
 
@@ -221,6 +223,11 @@ export function normalizeMotos(rows) {
       cc,
       kw,
       isScooter: isScooter(clean),
+      // ABS: תקנה אירופית 168/2013 מחייבת ABS בכל דו גלגלי חדש מעל 125 סמ"ק
+      // מ־2017, וכל הקטלוג הוא יבוא אירופי עדכני. מתחת ל־125 זה ידוע רק
+      // אם סומן במפורש בספר מול מפרט היבואן. tc מסומן רק ממקור מאומת.
+      abs: (cc != null && cc > 125) ? true : (entry?.abs ?? null),
+      tc: entry?.tc ?? null,
       hp: kw != null ? Math.round(kw * HP_PER_KW * 10) / 10 : (a.hp ?? null),
       license: licenseFor(cc, kw, entry?.lic ?? a.license),
       consumption: entry?.cons ?? a.consumption ?? null,
