@@ -4,22 +4,60 @@
 import { useState } from 'react'
 import { supabase } from './lib/supabase'
 
+// הניסוחים נייטרליים מגדרית בכוונה: קודם ניסוח בלי פנייה ממוגדרת בכלל,
+// וצורת לך.י רק כשאין ברירה. בכתיב חסר ניקוד מילים כמו לך, שלך, עליך
+// קוראות ממילא לשני המגדרים, והבעיה האמיתית היא פעלים בהווה ("אתה מעדיף",
+// "בחר"). את רובם אפשר לנסח מחדש בלי מגדר בכלל, וזה גם נראה נקי יותר.
+// ערכי הניקוד לא השתנו, ולכן סיגמה של פרופילים קיימים נשארת ברת השוואה.
 const SURVEY = [
-  { q: 'כשבא לך משהו, אתה בדרך כלל', type: 'sigma',
-    opts: [['קונה מיד', 0.0], ['חושב על זה כמה ימים', 0.6], ['כמעט תמיד מתאפק', 1.0]] },
-  { q: 'מה אתה מעדיף', type: 'sigma',
-    opts: [['סכום קטן עכשיו', 0.0], ['תלוי בכמה', 0.5], ['סכום גדול בעוד זמן', 1.0]] },
-  { q: 'בעבר, לחסוך למשהו גדול', type: 'sigma',
-    opts: [['אף פעם לא הצלחתי', 0.0], ['הצלחתי לפעמים', 0.5], ['תמיד מסיים מה שהתחלתי', 1.0]] },
-  { q: 'כדי להגיע מהר ליעד, לוותר על בילויים ופינוקים', type: 'sigma',
-    opts: [['ממש לא בא לי', 0.0], ['קצת, בסדר', 0.5], ['בלי בעיה', 1.0]] },
-  { q: 'אני עוקב אחרי ההוצאות שלי', type: 'sigma',
-    opts: [['בכלל לא', 0.0], ['בערך', 0.5], ['בדיוק', 1.0]] },
-  { q: 'החיסכון שלי בדרך כלל', type: 'sigma',
+  { q: 'כשבא לך משהו, מה קורה בדרך כלל?', type: 'sigma',
+    opts: [['קונה מיד', 0.0], ['מחכה עם זה כמה ימים', 0.6], ['לרוב החשק עובר מעצמו', 1.0]] },
+  // מספרים קונקרטיים במקום מושגים מופשטים. היחס בין הסכומים הוא כפתור
+  // הכיול של השאלה: פער גדול מדי (כמו 400 מול 800) גורם לכולם לחכות
+  // והשאלה מפסיקה להבחין בין אנשים. אם יתברר שרוב העונים בוחרים אותו
+  // דבר, מכווננים את הפער עד שהבחירה נהיית באמת קשה.
+  { q: 'מציעים לך לבחור. מה עדיף מבחינתך?', type: 'sigma',
+    opts: [['400 ש"ח עכשיו', 0.0], ['500 ש"ח בעוד חצי שנה', 1.0], ['קשה להחליט, תלוי במצב', 0.5]] },
+  { q: 'איך הלך בעבר עם חיסכון למשהו גדול?', type: 'sigma',
+    opts: [['אף פעם לא הצלחתי', 0.0], ['הצלחתי לפעמים', 0.5], ['תמיד סיימתי מה שהתחלתי', 1.0]] },
+  { q: 'לוותר על בילויים ופינוקים כדי להגיע מהר יותר ליעד?', type: 'sigma',
+    opts: [['ממש לא', 0.0], ['קצת, זה בסדר', 0.5], ['בלי בעיה', 1.0]] },
+  { q: 'עד כמה יש לך מעקב אחרי ההוצאות?', type: 'sigma',
+    opts: [['אין בכלל', 0.0], ['בערך, בגדול', 0.5], ['עד השקל', 1.0]] },
+  { q: 'החיסכון שלך עד היום היה', type: 'sigma',
     opts: [['לא יציב, תלוי בחודש', 0.2], ['פחות או יותר קבוע', 0.6], ['קבוע כמו שעון', 1.0]] },
-  { q: 'מה הכי גורם לך להתמיד', type: 'style',
-    opts: [['שהכל קורה אוטומטית', 'automation'], ['נקודות, רצפים והתקדמות', 'gamification'], ['דדליין ולחץ של זמן', 'deadline']] },
+  { q: 'מה הכי עוזר לך להתמיד לאורך זמן?', type: 'style',
+    opts: [['כשמנחים אותי והרוב מגיע אליי כבר מוכן', 'automation'],
+           ['לראות את ההתקדמות שלי, גרפים, הישגים וכדומה', 'gamification'],
+           ['הפעלת לחץ בזמן ודדליין למשימות שלי', 'deadline']] },
 ]
+
+// החזירון הלומד: אותה דמות מ־DepositFx באותם צבעים, בקטן. יושב מתחת
+// לתשובות עם מיקרוקופי שמתחלף בין שאלות. עדין, לא מסיח, ונותן תחושה
+// שהשאלון באמת בונה משהו.
+const PIG_MSGS = ['החזירון לומד עליך...', 'החזירון רושם לעצמו...', 'החזירון בונה לך מסלול...']
+
+function LearningPig({ step }) {
+  return (
+    <div style={{ marginTop: 26, textAlign: 'center' }} aria-hidden="true">
+      <style>{'@keyframes pigFloat { 0%, 100% { transform: translateY(0) } 50% { transform: translateY(-5px) } }'}</style>
+      <svg width="76" height="62" viewBox="0 0 120 97" style={{ animation: 'pigFloat 2.6s ease-in-out infinite' }}>
+        <path d="M 30,28 C 24,16 30,8 40,7 C 45,13 45,22 40,28 Z" fill="#f38fb6" stroke="#46342e" strokeWidth="4" strokeLinejoin="round" />
+        <path d="M 90,28 C 96,16 90,8 80,7 C 75,13 75,22 80,28 Z" fill="#f38fb6" stroke="#46342e" strokeWidth="4" strokeLinejoin="round" />
+        <ellipse cx="60" cy="54" rx="42" ry="36" fill="#f9a9c7" stroke="#46342e" strokeWidth="4.5" />
+        <circle cx="44" cy="44" r="4" fill="#46342e" />
+        <circle cx="76" cy="44" r="4" fill="#46342e" />
+        <ellipse cx="60" cy="60" rx="16" ry="11" fill="#fbc7db" stroke="#46342e" strokeWidth="4" />
+        <ellipse cx="55" cy="60" rx="2" ry="3.6" fill="#46342e" />
+        <ellipse cx="65" cy="60" rx="2" ry="3.6" fill="#46342e" />
+        <path d="M 48,76 Q 60,82 72,76" fill="none" stroke="#46342e" strokeWidth="3.5" strokeLinecap="round" />
+      </svg>
+      <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 4 }}>
+        {PIG_MSGS[step % PIG_MSGS.length]}
+      </div>
+    </div>
+  )
+}
 
 export default function Survey({ userId, profile = null, onDone, onCancel }) {
   const [step, setStep] = useState(0)
@@ -104,10 +142,14 @@ export default function Survey({ userId, profile = null, onDone, onCancel }) {
         <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 6 }}>
           שאלה {step + 1} מתוך {SURVEY.length}
         </div>
-        <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 16 }}>{cur.q}</div>
+        <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>{cur.q}</div>
+        <div style={{ fontSize: 12.5, color: 'var(--color-text-muted)', marginBottom: 16 }}>
+          אין תשובה נכונה, זה עוזר להתאים לך מסלול
+        </div>
         {cur.opts.map(([label, val], k) => (
           <button key={k} style={optBtn} onClick={() => pick(val)}>{label}</button>
         ))}
+        <LearningPig step={step} />
       </div>
     )
   }
@@ -121,7 +163,7 @@ export default function Survey({ userId, profile = null, onDone, onCancel }) {
       </div>
       <input style={input} placeholder="הכנסה חודשית נטו בשקלים" inputMode="numeric" value={income} onChange={e => setIncome(e.target.value)} />
       <input style={input} placeholder="כמה כבר חסכת בשקלים" inputMode="numeric" value={savings} onChange={e => setSavings(e.target.value)} />
-      <input style={input} placeholder="כמה תוכל להפריש בחודש בשקלים" inputMode="numeric" value={monthly} onChange={e => setMonthly(e.target.value)} />
+      <input style={input} placeholder="כמה אפשר להפריש בחודש בשקלים" inputMode="numeric" value={monthly} onChange={e => setMonthly(e.target.value)} />
       <input style={input} placeholder="סוג רישיון נהיגה, לא חובה" value={license} onChange={e => setLicense(e.target.value)} />
       <input style={input} placeholder="שנת לידה, למשל 2004" inputMode="numeric" value={birthYear} onChange={e => setBirthYear(e.target.value)} />
       <input style={input} placeholder="שנת הוצאת רישיון, למשל 2022" inputMode="numeric" value={licenseYear} onChange={e => setLicenseYear(e.target.value)} />

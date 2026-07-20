@@ -401,7 +401,13 @@ function CarCard({ v, profile, onOpen, fav, onToggleFav, inCompare, onToggleComp
 
 export default function Catalog({ profile, onProfileSaved, demo = false, onRequestAuth }) {
   const [kind, setKind] = useState(() => localStorage.getItem('cat_kind') === 'moto' ? 'moto' : 'car')
-  const [query, setQuery] = useState(() => localStorage.getItem('cat_query') || '')
+  // חיפוש נפרד לכל קטלוג: אובייקט שאילתות לפי סוג במקום משתנה משותף.
+  // כל קטלוג זוכר את הטקסט שלו, ומעבר בין קטלוגים לא גורר חיפוש של האחד לשני
+  const [queries, setQueries] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('cat_queries') || '{}') || {} } catch { return {} }
+  })
+  const query = queries[kind] ?? ''
+  const setQuery = v => setQueries(qs => ({ ...qs, [kind]: v }))
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(false)
   const [loadErr, setLoadErr] = useState('')
@@ -438,13 +444,13 @@ export default function Catalog({ profile, onProfileSaved, demo = false, onReque
   }, [darkMode])
 
   useEffect(() => {
-    localStorage.setItem('cat_query', query)
+    localStorage.setItem('cat_queries', JSON.stringify(queries))
     localStorage.setItem('cat_yearMin', yearMin)
     localStorage.setItem('cat_sortBy', sortBy)
     localStorage.setItem('cat_favOnly', favOnly)
     localStorage.setItem('cat_kind', kind)
     localStorage.setItem('cat_imgOnly', imgOnly)
-  }, [query, yearMin, sortBy, favOnly, kind, imgOnly])
+  }, [queries, yearMin, sortBy, favOnly, kind, imgOnly])
 
   function sortCars(list, sb) {
     const arr = [...list]
@@ -488,7 +494,8 @@ export default function Catalog({ profile, onProfileSaved, demo = false, onReque
     setKind(k)
     setCompareSel([])
     setBrandSel(''); setLicSel(''); setCcMax(0); setPriceLo(0); setPriceHi(0)
-    search(query, yearMin, sortBy, favOnly, favIds, k)
+    // מחפשים עם השאילתה של הקטלוג שעוברים אליו, לא עם זו של הנוכחי
+    search(queries[k] ?? '', yearMin, sortBy, favOnly, favIds, k)
   }
 
   async function openGoalCar(id) {
@@ -635,11 +642,14 @@ export default function Catalog({ profile, onProfileSaved, demo = false, onReque
           🏍️ אופנועים
         </button>
       </div>
+      {/* כפתור ההתאמה האישית הוא הפעולה המרכזית במסך, ולכן מלא בצבע
+          הראשי וגדול משאר הכפתורים, ולא עוד אופציה ברשימה */}
       {kind === 'car' && <button
         onClick={() => setMode('test')}
-        style={{ width: '100%', padding: 12, marginBottom: 8, borderRadius: 10, border: '1px solid var(--color-primary)', background: 'var(--color-surface)', color: 'var(--color-text)', fontWeight: 700, fontSize: 14 }}
+        className="btn-primary"
+        style={{ width: '100%', padding: 15, marginBottom: 8, borderRadius: 12, fontWeight: 800, fontSize: 16.5 }}
       >
-        {profile?.car_prefs ? 'תוצאות ההתאמה שלי' : 'מבחן התאמה, מצא רכב בשבילי'}
+        {profile?.car_prefs ? 'תוצאות ההתאמה שלי' : '✨ מבחן התאמה אישית, איזה רכב מתאים לי'}
       </button>}
       {kind === 'car' && <button
         onClick={() => setCarCheck(true)}
@@ -749,7 +759,7 @@ export default function Catalog({ profile, onProfileSaved, demo = false, onReque
       <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
         <input
           style={{ flex: 1, padding: 10, fontSize: 15 }}
-          placeholder={kind === 'moto' ? 'חפש לפי יצרן או דגם, למשל הונדה PCX' : 'חפש לפי יצרן או דגם, למשל טויוטה'}
+          placeholder={kind === 'moto' ? 'חיפוש לפי יצרן או דגם, למשל הונדה PCX' : 'חיפוש לפי יצרן או דגם, למשל טויוטה'}
           value={query}
           onChange={e => setQuery(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') search(query) }}
@@ -766,15 +776,15 @@ export default function Catalog({ profile, onProfileSaved, demo = false, onReque
       {loading && <div style={{ color: 'var(--color-text-muted)' }}>טוען</div>}
       {loadErr && (
         <div style={{ color: 'var(--color-danger)', fontSize: 13, marginBottom: 10 }}>
-          {loadErr} <button onClick={() => search(query)} style={{ padding: '3px 8px', fontSize: 12 }}>נסה שוב</button>
+          {loadErr} <button onClick={() => search(query)} style={{ padding: '3px 8px', fontSize: 12 }}>ניסיון נוסף</button>
         </div>
       )}
       {!loading && visible.length === 0 && (
         <div style={{ color: 'var(--color-text-muted)' }}>{
           rows.length > 0
-            ? 'אין תוצאות לסינון הזה. נסה להרחיב אותו או ללחוץ ניקוי סינון'
+            ? 'אין תוצאות לסינון הזה. אפשר להרחיב אותו או ללחוץ ניקוי סינון'
             : (favOnly
-                ? (kind === 'moto' ? 'אין עדיין מועדפים. סמן כוכב על דגמים שמעניינים אותך' : 'אין עדיין מועדפים. סמן כוכב על רכבים שמעניינים אותך')
+                ? (kind === 'moto' ? 'אין עדיין מועדפים. כוכב על דגם שמעניין אותך ישמור אותו כאן' : 'אין עדיין מועדפים. כוכב על רכב שמעניין אותך ישמור אותו כאן')
                 : 'לא נמצאו תוצאות')
         }</div>
       )}
