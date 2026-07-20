@@ -1,22 +1,56 @@
 // tools/fetchImages.mjs
 // מייצר מפת תמונות סטטית לכל דגם ושנתון בקטלוג, מוויקישיתוף.
 //
-// למה סקריפט ולא חיפוש בזמן ריצה: היום כל דפדפן שולח מאות בקשות לוויקימדיה
-// בטעינת הקטלוג, חוטף הגבלת קצב, ומקבל כרטיסים בלי תמונה. מפה סטטית פותרת
-// את זה לגמרי: אפס קריאות רשת אצל המשתמש, ותמונה שמופיעה מיד.
+// למה סקריפט ולא חיפוש בזמן ריצה: בלי מפה סטטית כל דפדפן שולח מאות בקשות
+// לוויקימדיה בטעינת הקטלוג, חוטף הגבלת קצב, ומקבל כרטיסים בלי תמונה.
 //
 // הרצה מקומית:  node tools/fetchImages.mjs
-// ב־CI זה רץ שבועית דרך .github/workflows/images.yml
+// ב CI זה רץ שבועית דרך .github/workflows/images.yml
 //
-// דרוש: SUPABASE_URL ו־SUPABASE_ANON_KEY בסביבה.
+// דרוש: SUPABASE_URL ו SUPABASE_ANON_KEY בסביבה.
+//
+// ============================================================================
+// למה הסקריפט נראה ככה, 20.7.2026
+// ============================================================================
+// הריצה הראשונה החזירה 143 תמונות, כולן אאודי, ואפס אופנועים. הסיבה:
+// הקטלוג הוא 44,602 שורות רכב ו 2,927 דגמים, כלומר כ 8,800 צירופי דגם ושנתון.
+// הסקריפט ירה 8,800 חיפושים ברצף, ויקימדיה חסמה אחרי כ 300, וכל השאר נפל
+// לתוך catch שהגדיל מונה ולא רשם כלום. 1,999 דגמים לא הותירו שום עקבה,
+// והאופנועים, שישבו בסוף התור, לא נגעו ברשת בכלל.
+//
+// ארבע מסקנות שמעצבות את הקובץ הזה:
+//   1. חיפוש אחד לדגם, לא לדגם ושנתון. בקשה אחת מחזירה 14 מועמדים, ומהם
+//      נבחר לכל שנתון את הקובץ הקרוב ביותר. פי שלושה פחות בקשות.
+//   2. תקציב לריצה ומצב שנשמר בין ריצות. הסוכן השבועי מתקדם במצטבר.
+//   3. אופנועים ראשונים בתור. 93 דגמים, הערך הגבוה ביותר.
+//   4. שקט הוא באג. הריצה נופלת אם נחסמנו, כדי שזה ייראה.
+// ============================================================================
 
 import { writeFileSync, readFileSync, existsSync } from 'node:fs'
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY
-const OUT = 'src/lib/imageMap.json'
 
-// ויקימדיה דורשת User-Agent מזהה לשימוש ב־API. בלעדיו הבקשות נחסמות.
+const OUT   = 'src/lib/imageMap.json'
+const STATE = 'tools/imageState.json'
+const MISS  = 'tools/missing-images.txt'
+
+// כמה דגמים לחפש בריצה אחת. הקטלוג גדול מכדי לכסות אותו בבת אחת,
+// והמצב נשמר, ולכן כל ריצה שבועית מתקדמת עוד קצת.
+const BUDGET = Number(process.env.IMAGE_BUDGET || 600)
+
+// כמה זמן לסמוך על תוצאה קודמת לפני חיפוש חוזר.
+const TTL_HIT  = 180   // דגם שיש לו תמונה
+const TTL_NONE = 60    // דגם שחיפשנו ולא נמצא. ויקישיתוף מתעדכן, שווה לנסות שוב
+
+// קצב. ויקימדיה חסמה אותנו בארבע בקשות במקביל בלי השהיה.
+// ניתן לכוונון מהסביבה כדי לאפשר ריצת השלמה ידנית איטית או מהירה יותר.
+const CONCURRENCY = Number(process.env.IMAGE_CONCURRENCY || 2)
+const MIN_GAP_MS  = Number(process.env.IMAGE_GAP_MS ?? 300)   // כ 3 בקשות לשנייה
+const MAX_RETRY   = 3
+const ABORT_AFTER = 5            // כשלי קצב רצופים שאחריהם עוצרים
+
+// ויקימדיה דורשת User-Agent מזהה לשימוש ב API. בלעדיו הבקשות נחסמות.
 const UA = 'YadLayaad/1.0 (https://github.com/noderdokira/YadLayaad) image-map-builder'
 
 const BRANDS = {
@@ -40,37 +74,82 @@ const BRANDS = {
   'וספה': 'Vespa', 'קוואסאקי': 'Kawasaki', 'רויאל אנפילד': 'Royal Enfield',
   'סאן יאנג': 'SYM', 'ימאהה': 'Yamaha',
 }
+const BRAND_KEYS = Object.keys(BRANDS).sort((a, b) => b.length - a.length)
+
+const sleep = ms => new Promise(r => setTimeout(r, ms))
+const today = () => new Date().toISOString().slice(0, 10)
+const daysSince = iso => {
+  const t = Date.parse(iso || '')
+  return Number.isFinite(t) ? (Date.now() - t) / 86400000 : Infinity
+}
+
+// ---------------------------------------------------------------------------
+// שער קצב גלובלי. שומר מרווח מזערי בין תחילות בקשות, גם כשיש כמה עובדים.
+// ---------------------------------------------------------------------------
+let nextSlot = 0
+async function pace() {
+  const now = Date.now()
+  const at = Math.max(now, nextSlot)
+  nextSlot = at + MIN_GAP_MS
+  if (at > now) await sleep(at - now)
+}
+
+class RateLimited extends Error {}
+
+let blocked = 0          // כמה פעמים ויקימדיה החזירה 429 או 5xx
+let consecutive = 0      // כשלי קצב רצופים
+let aborted = false
+
+async function wikiJson(url) {
+  for (let attempt = 1; ; attempt++) {
+    await pace()
+    let res
+    try {
+      res = await fetch(url, { headers: { 'User-Agent': UA, Accept: 'application/json' } })
+    } catch (e) {
+      if (attempt >= MAX_RETRY) throw e
+      await sleep(1000 * 2 ** attempt)
+      continue
+    }
+    if (res.ok) { consecutive = 0; return res.json() }
+
+    const throttled = res.status === 429 || res.status >= 500
+    if (throttled) {
+      blocked++
+      if (attempt < MAX_RETRY) {
+        const ra = Number(res.headers.get('retry-after'))
+        await sleep(Number.isFinite(ra) && ra > 0 ? ra * 1000 : Math.min(30000, 1000 * 2 ** attempt))
+        continue
+      }
+      throw new RateLimited('HTTP ' + res.status)
+    }
+    throw new Error('HTTP ' + res.status + ' ' + url)
+  }
+}
 
 // שנתון והספק אינם מזהי דגם ולכן יוצאים מהשאילתה
 const stripQualifiers = m => m.toUpperCase()
   .replace(/\b20\d\d\b/g, '').replace(/\b\d+\s?KW\b/g, '').replace(/\s+/g, ' ').trim()
 
-async function getJson(url) {
-  const res = await fetch(url, { headers: { 'User-Agent': UA, 'Accept': 'application/json' } })
-  if (!res.ok) throw new Error('HTTP ' + res.status + ' ' + url)
-  return res.json()
-}
-
-// כללי ההתאמה, זהים לאלה שבאפליקציה:
+// כללי ההתאמה:
 //   שם היצרן חייב להופיע בשם הקובץ
 //   כל מילות הדגם חייבות להופיע
 //   כל מספר בשם הדגם חייב להופיע, אחרת מקבלים אלימינייטור 125 במקום 500
-//   מבין המתאימים בוחרים את השנתון הקרוב ביותר, ואז קובץ שמתחיל בשם היצרן
-async function findImage(brandEn, model, year) {
-  if (!brandEn || !model) return null
+// מחזיר את כל המועמדים. בחירת השנתון נעשית אחר כך, בלי בקשה נוספת.
+async function findCandidates(brandEn, model) {
   const core = stripQualifiers(model)
-  if (!core) return null
+  if (!brandEn || !core) return []
   const api = 'https://commons.wikimedia.org/w/api.php'
     + '?action=query&format=json&generator=search&gsrnamespace=6&gsrlimit=14'
     + '&gsrsearch=' + encodeURIComponent(brandEn + ' ' + core)
     + '&prop=imageinfo&iiprop=url%7Cmime&iiurlwidth=480'
-  const json = await getJson(api)
+  const json = await wikiJson(api)
   const pages = Object.values(json?.query?.pages || {}).sort((a, b) => (a.index ?? 9) - (b.index ?? 9))
 
   const B = brandEn.toUpperCase()
   const tokens = core.split(/\s+/).filter(Boolean)
   const nums = core.match(/\d+/g) || []
-  const hits = []
+  const out = []
   for (const p of pages) {
     const title = (p.title || '').replace(/^File:/, '')
     const T = title.toUpperCase().replace(/[_\-()]/g, ' ')
@@ -79,100 +158,173 @@ async function findImage(brandEn, model, year) {
     if (!T.includes(B)) continue
     if (!tokens.every(t => T.includes(t.replace(/[-()]/g, ' ').trim()))) continue
     if (!nums.every(n => new RegExp('(^|[^0-9])' + n + '([^0-9]|$)').test(T))) continue
-    const fy = (title.match(/\b(20\d\d)\b/) || [])[1]
-    hits.push({
+    out.push({
       url: ii.thumburl,
-      title,
-      gap: fy && year ? Math.abs(Number(fy) - year) : 6,
+      fileYear: Number((title.match(/\b(20\d\d)\b/) || [])[1]) || null,
       lead: T.trimStart().startsWith(B) ? 0 : 1,
     })
   }
-  hits.sort((a, b) => a.gap - b.gap || a.lead - b.lead)
-  return hits[0] || null
+  return out
+}
+
+// מתוך מועמדים של דגם אחד, הקובץ שהכי קרוב לשנתון המבוקש
+function pickForYear(cands, year) {
+  if (!cands.length) return null
+  return [...cands].sort((a, b) => {
+    const ga = a.fileYear && year ? Math.abs(a.fileYear - year) : 6
+    const gb = b.fileYear && year ? Math.abs(b.fileYear - year) : 6
+    return ga - gb || a.lead - b.lead
+  })[0]
 }
 
 function split(name) {
-  const he = Object.keys(BRANDS).sort((a, b) => b.length - a.length).find(k => name.startsWith(k))
+  const he = BRAND_KEYS.find(k => name.startsWith(k))
   if (!he) return null
-  const rest = name.slice(he.length)
-  const latin = (rest.match(/[A-Za-z0-9][A-Za-z0-9 .\-]*/g) || []).join(' ').trim()
-  return latin ? { brandEn: BRANDS[he], model: latin, brandHe: he } : null
+  const latin = (name.slice(he.length).match(/[A-Za-z0-9][A-Za-z0-9 .\-]*/g) || []).join(' ').trim()
+  return latin ? { brandEn: BRANDS[he], model: latin } : null
 }
 
 async function loadCatalog() {
   if (!SUPABASE_URL || !SUPABASE_KEY) {
     throw new Error('חסרים SUPABASE_URL או SUPABASE_ANON_KEY בסביבה')
   }
+  const perKind = {}
   const rows = []
   for (const kind of ['car', 'moto']) {
     let from = 0
     for (;;) {
+      // הדפדוף ממויין לפי name ואז year ואז id. id הוא ייחודי, ובלעדיו
+      // OFFSET מעל 44,602 שורות עם שמות חוזרים מדלג ומכפיל שורות.
       const url = SUPABASE_URL + '/rest/v1/products?select=name,year,kind&kind=eq.' + kind
-        + '&order=name.asc&limit=1000&offset=' + from
-      const res = await fetch(url, { headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY } })
-      if (!res.ok) throw new Error('Supabase HTTP ' + res.status)
+        + '&order=name.asc,year.asc,id.asc&limit=1000&offset=' + from
+      const res = await fetch(url, {
+        headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY },
+      })
+      if (!res.ok) throw new Error('Supabase HTTP ' + res.status + ' עבור kind=' + kind)
       const batch = await res.json()
       rows.push(...batch)
       if (batch.length < 1000) break
       from += batch.length
     }
+    perKind[kind] = rows.filter(r => r.kind === kind).length
+    // משמר: סוג שמחזיר אפס שורות הוא תמיד תקלה, לא מצב תקין
+    if (!perKind[kind]) throw new Error('הקטלוג החזיר אפס שורות עבור kind=' + kind)
   }
-  // דגם ושנתון ייחודיים בלבד
-  const seen = new Set()
-  return rows.filter(r => {
-    const k = r.kind + '|' + r.name + '|' + r.year
-    if (seen.has(k)) return false
-    seen.add(k)
-    return true
-  })
+  return { rows, perKind }
 }
 
-// ארבע בקשות במקביל. יותר מזה וויקימדיה מחזירה 429.
-async function mapLimit(items, limit, fn) {
-  const out = new Array(items.length)
-  let i = 0
-  const workers = Array.from({ length: limit }, async () => {
-    for (;;) {
-      const idx = i++
-      if (idx >= items.length) return
-      out[idx] = await fn(items[idx], idx)
-    }
-  })
-  await Promise.all(workers)
-  return out
+// ---------------------------------------------------------------------------
+
+const prev  = existsSync(OUT)   ? JSON.parse(readFileSync(OUT, 'utf8'))   : {}
+const state = existsSync(STATE) ? JSON.parse(readFileSync(STATE, 'utf8')) : {}
+
+const { rows, perKind } = await loadCatalog()
+console.log('שורות בקטלוג: רכב', perKind.car, '· דו גלגלי', perKind.moto)
+
+// קיבוץ לפי דגם. לכל דגם רשימת השנתונים שלו, וחיפוש אחד בלבד.
+const byModel = new Map()
+for (const r of rows) {
+  const id = (r.kind === 'moto' ? 'm|' : 'c|') + r.name
+  let e = byModel.get(id)
+  if (!e) byModel.set(id, e = { kind: r.kind, name: r.name, years: new Set() })
+  e.years.add(r.year)
 }
+console.log('דגמים ייחודיים: רכב',
+  [...byModel.values()].filter(e => e.kind === 'car').length, '· דו גלגלי',
+  [...byModel.values()].filter(e => e.kind === 'moto').length)
 
-const prev = existsSync(OUT) ? JSON.parse(readFileSync(OUT, 'utf8')) : {}
-
-const catalog = await loadCatalog()
-console.log('שורות בקטלוג:', catalog.length)
-
-let hit = 0, miss = 0, reused = 0, failed = 0
-const missing = []
-const map = {}
-
-await mapLimit(catalog, 4, async (row) => {
-  const key = (row.kind === 'moto' ? 'm|' : '') + row.name + '|' + row.year
-  const parts = split(row.name)
-  if (!parts) { miss++; missing.push(row.name + ' (יצרן לא מזוהה)'); return }
-  try {
-    const r = await findImage(parts.brandEn, parts.model, row.year)
-    if (r) { map[key] = r.url; hit++ }
-    else { miss++; missing.push(row.name + ' ' + row.year) }
-  } catch (e) {
-    // כשל רשת: שומרים את הערך הקודם אם היה, ולא מוחקים תמונה תקינה
-    failed++
-    if (prev[key]) { map[key] = prev[key]; reused++ }
-  }
+// אופנועים ראשונים. 93 דגמים בלבד, וברשימה משותפת הם תמיד בסוף.
+const all = [...byModel.entries()].sort((a, b) => {
+  if (a[1].kind !== b[1].kind) return a[1].kind === 'moto' ? -1 : 1
+  return a[1].name.localeCompare(b[1].name, 'he')
 })
+
+const map = { ...prev }        // אף פעם לא מאבדים תמונה שכבר יש
+const unknownBrand = []
+const queue = []
+let fresh = 0
+
+for (const [id, e] of all) {
+  const parts = split(e.name)
+  if (!parts) { unknownBrand.push(e.name); continue }
+  const st = state[id]
+  const ttl = st?.r === 'hit' ? TTL_HIT : TTL_NONE
+  if (st && daysSince(st.t) < ttl) { fresh++; continue }
+  queue.push({ id, ...e, ...parts })
+}
+
+const work = queue.slice(0, BUDGET)
+console.log('בתוקף מריצה קודמת:', fresh,
+  '· יצרן לא מזוהה:', unknownBrand.length,
+  '· ממתינים לחיפוש:', queue.length,
+  '· נבדקים בריצה הזו:', work.length)
+
+let hit = 0, none = 0, errors = 0, attempted = 0
+
+let i = 0
+await Promise.all(Array.from({ length: CONCURRENCY }, async () => {
+  for (;;) {
+    if (aborted) return
+    const item = work[i++]
+    if (!item) return
+    attempted++
+    try {
+      const cands = await findCandidates(item.brandEn, item.model)
+      if (cands.length) {
+        for (const y of item.years) {
+          const best = pickForYear(cands, y)
+          if (best) map[(item.kind === 'moto' ? 'm|' : '') + item.name + '|' + y] = best.url
+        }
+        hit++
+        state[item.id] = { r: 'hit', t: today() }
+      } else {
+        none++
+        state[item.id] = { r: 'none', t: today() }
+      }
+      consecutive = 0
+    } catch (e) {
+      errors++
+      if (e instanceof RateLimited) {
+        if (++consecutive >= ABORT_AFTER) {
+          aborted = true
+          return
+        }
+      }
+      // בלי רישום state: הדגם יידגם שוב בריצה הבאה
+    }
+  }
+}))
+
+// ---------------------------------------------------------------------------
 
 const sorted = Object.fromEntries(Object.keys(map).sort().map(k => [k, map[k]]))
 writeFileSync(OUT, JSON.stringify(sorted, null, 0) + '\n')
+writeFileSync(STATE, JSON.stringify(state, null, 0) + '\n')
 
-const uniqMissing = [...new Set(missing.map(m => m.replace(/ \d{4}$/, '')))].sort()
-writeFileSync('tools/missing-images.txt',
-  'דגמים בלי תמונה, נוצר ' + new Date().toISOString().slice(0, 10) + '\n\n' + uniqMissing.join('\n') + '\n')
+const noImage = [...new Set([
+  ...unknownBrand.map(n => n + ' (יצרן לא מזוהה)'),
+  ...all.filter(([id]) => state[id]?.r === 'none').map(([, e]) => e.name),
+])].sort()
+writeFileSync(MISS, 'דגמים בלי תמונה, נוצר ' + today() + '\n\n' + noImage.join('\n') + '\n')
 
-console.log('נמצאו:', hit, '· חסרים:', miss, '· כשלי רשת:', failed, '(מתוכם שוחזרו מהמפה הקודמת:', reused + ')')
-console.log('דגמים ייחודיים בלי תמונה:', uniqMissing.length)
-console.log('נכתב:', OUT)
+const done = [...all].filter(([id]) => state[id]).length
+console.log('')
+console.log('תוכננו:', work.length, '· נבדקו בפועל:', attempted,
+  '· נמצאו:', hit, '· אין תמונה:', none, '· שגיאות:', errors)
+console.log('הגבלת קצב מוויקימדיה:', blocked, 'פעמים')
+console.log('מפתחות במפה:', Object.keys(sorted).length, '(היו', Object.keys(prev).length + ')')
+console.log('כיסוי הקטלוג:', done, 'מתוך', all.length - unknownBrand.length,
+  'דגמים ניתנים לחיפוש')
+
+// שקט הוא באג. הריצה שהחזירה 143 תמונות עברה בירוק בזמן שהיא זרקה
+// כמעט 6,000 בקשות חסומות לפח.
+if (aborted) {
+  console.error('\nעצירה: ויקימדיה חסמה אותנו ' + ABORT_AFTER + ' פעמים ברצף.')
+  console.error('מה שנמצא עד כה נשמר. להוריד את IMAGE_BUDGET או להאט את MIN_GAP_MS.')
+  process.exit(1)
+}
+if (attempted && errors / attempted > 0.2) {
+  console.error('\nיותר מחמישית מהחיפושים נכשלו (' + errors + ' מתוך ' + attempted + ').')
+  console.error('מה שנמצא עד כה נשמר, אבל הריצה מסומנת ככישלון בכוונה.')
+  process.exit(1)
+}
